@@ -1,0 +1,20 @@
+.avatar {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* 크기 */
+.sm { width: 20px; height: 20px; font-size: 10px; }
+.md { width: 28px; height: 28px; font-size: 11px; }
+.lg { width: 32px; height: 32px; font-size: 12px; }
+
+/* 색상 팔레트 */
+.green  { background: rgba(35, 165,  89, 0.22); color: #3ba55c; }
+.yellow { background: rgba(240, 178,  50, 0.22); color: #faa81a; }
+.indigo { background: rgba(88,  101, 242, 0.22); color: #9aadff; }
+.red    { background: rgba(240,  71,  71, 0.22); color: #ed4245; }

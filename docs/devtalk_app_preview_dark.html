@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevTalk — Dark</title>
+<style>
+/* ── Dark theme token overrides ── */
+:root {
+  --color-background-primary:   #1e1f22;
+  --color-background-secondary: #2b2d31;
+  --color-background-tertiary:  #111214;
+
+  --color-background-info:    rgba(88,  101, 242, 0.18);
+  --color-background-success: rgba(35,  165,  89, 0.18);
+  --color-background-warning: rgba(240, 178,  50, 0.18);
+  --color-background-danger:  rgba(240,  71,  71, 0.18);
+
+  --color-text-primary:   #e3e5e8;
+  --color-text-secondary: #a3a6aa;
+  --color-text-tertiary:  #6d6f78;
+
+  --color-text-info:    #7289da;
+  --color-text-success: #3ba55c;
+  --color-text-warning: #faa81a;
+  --color-text-danger:  #ed4245;
+
+  --color-border-tertiary: rgba(255,255,255,0.06);
+  --color-border-secondary: rgba(255,255,255,0.10);
+  --color-border-primary:   rgba(255,255,255,0.16);
+  --color-border-info:    rgba(88, 101, 242, 0.45);
+  --color-border-success: rgba(35, 165,  89, 0.45);
+  --color-border-warning: rgba(240,178,  50, 0.45);
+  --color-border-danger:  rgba(240, 71,  71, 0.45);
+
+  --font-sans: system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: #111214; display: flex; align-items: center; justify-content: center; padding: 24px; }
+body { font-family: var(--font-sans); }
+
+.app {
+  display: flex;
+  height: 580px;
+  width: 100%;
+  max-width: 960px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+  background: var(--color-background-primary);
+}
+
+/* ── Sidebar ── */
+.sidebar { width: 220px; min-width: 220px; background: var(--color-background-secondary); border-right: 0.5px solid var(--color-border-tertiary); display: flex; flex-direction: column; }
+.ws-header { padding: 14px 14px 10px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.ws-name { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+.ws-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 1px; }
+
+.sidebar-section { padding: 10px 0 4px; }
+.section-label { font-size: 11px; color: var(--color-text-tertiary); padding: 0 14px 4px; letter-spacing: .04em; text-transform: uppercase; }
+
+.channel-item { display: flex; align-items: center; gap: 7px; padding: 5px 14px; cursor: pointer; font-size: 13px; color: var(--color-text-secondary); transition: background .12s; }
+.channel-item:hover { background: rgba(255,255,255,0.04); }
+.channel-item.active { background: var(--color-background-info); color: #9aadff; font-weight: 500; }
+.ch-icon { font-size: 13px; width: 16px; text-align: center; }
+
+.badge { margin-left: auto; background: var(--color-background-danger); color: var(--color-text-danger); font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 8px; }
+
+.dm-item { display: flex; align-items: center; gap: 8px; padding: 5px 14px; cursor: pointer; font-size: 13px; color: var(--color-text-secondary); }
+.dm-item:hover { background: rgba(255,255,255,0.04); }
+
+.avatar-sm { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; flex-shrink: 0; }
+.online-dot { width: 7px; height: 7px; background: #3ba55c; border-radius: 50%; margin-left: auto; }
+
+.sidebar-footer { margin-top: auto; padding: 10px 14px; border-top: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 8px; }
+.me-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--color-background-info); color: #9aadff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; }
+.me-name { font-size: 12px; font-weight: 500; color: var(--color-text-primary); }
+.me-status { font-size: 11px; color: var(--color-text-success); }
+
+/* ── Main chat ── */
+.chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--color-background-primary); }
+.chat-header { padding: 12px 18px; border-bottom: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 10px; }
+.chat-header-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+.chat-header-desc { font-size: 12px; color: var(--color-text-tertiary); margin-left: 6px; }
+.header-actions { margin-left: auto; display: flex; gap: 8px; }
+.icon-btn { width: 28px; height: 28px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--color-text-secondary); }
+.icon-btn:hover { background: var(--color-background-secondary); }
+
+.messages { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 2px; }
+.msg-group { display: flex; gap: 10px; padding: 4px 0; }
+.msg-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; flex-shrink: 0; margin-top: 1px; }
+.msg-body { flex: 1; min-width: 0; }
+.msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+.msg-name { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+.msg-time { font-size: 11px; color: var(--color-text-tertiary); }
+.msg-text { font-size: 13px; color: var(--color-text-secondary); line-height: 1.55; }
+.msg-text code { font-family: var(--font-mono); font-size: 12px; background: #2e3035; border: 0.5px solid rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 4px; color: #9aadff; }
+
+/* Code block */
+.code-block { margin-top: 6px; background: #1a1b1e; border: 0.5px solid rgba(255,255,255,0.08); border-radius: var(--border-radius-md); overflow: hidden; }
+.code-lang { font-size: 11px; color: var(--color-text-tertiary); padding: 5px 10px; border-bottom: 0.5px solid rgba(255,255,255,0.07); display: flex; justify-content: space-between; background: #212225; }
+.code-content { font-family: var(--font-mono); font-size: 12px; padding: 10px; color: #cdd6f4; line-height: 1.6; white-space: pre; }
+.kw  { color: #cba6f7; }
+.fn  { color: #89dceb; }
+.str { color: #a6e3a1; }
+.cm  { color: #585b70; }
+
+/* Reactions */
+.reaction-bar { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+.reaction { display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.10); border-radius: 10px; padding: 2px 8px; font-size: 12px; cursor: pointer; color: var(--color-text-secondary); }
+.reaction.mine { border-color: rgba(88,101,242,0.6); background: rgba(88,101,242,0.18); color: #9aadff; }
+.reaction:hover { background: rgba(255,255,255,0.09); }
+
+/* Divider */
+.divider { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.divider-line { flex: 1; height: 0.5px; background: var(--color-border-tertiary); }
+.divider-text { font-size: 11px; color: var(--color-text-tertiary); }
+
+/* Thread preview */
+.thread-preview { margin-top: 5px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9aadff; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.thread-preview:hover { background: var(--color-background-info); }
+.thread-ava { width: 18px; height: 18px; border-radius: 50%; font-size: 8px; display: flex; align-items: center; justify-content: center; font-weight: 500; }
+
+/* Input */
+.input-area { padding: 10px 18px 14px; border-top: 0.5px solid var(--color-border-tertiary); }
+.input-toolbar { display: flex; gap: 4px; margin-bottom: 6px; }
+.tool-btn { width: 26px; height: 26px; border-radius: 5px; border: none; background: transparent; cursor: pointer; font-size: 12px; color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center; }
+.tool-btn:hover { background: rgba(255,255,255,0.07); color: var(--color-text-secondary); }
+.input-box { display: flex; align-items: center; gap: 8px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 8px 12px; background: #2e3035; }
+.input-field { flex: 1; font-size: 13px; color: var(--color-text-tertiary); font-family: inherit; }
+.send-btn { width: 28px; height: 28px; background: #5865f2; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px; color: #fff; }
+
+/* Right panel */
+.right-panel { width: 230px; min-width: 230px; border-left: 0.5px solid var(--color-border-tertiary); display: flex; flex-direction: column; background: var(--color-background-secondary); }
+.panel-header { padding: 12px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 13px; font-weight: 500; color: var(--color-text-primary); display: flex; justify-content: space-between; align-items: center; }
+.panel-close { font-size: 12px; color: var(--color-text-tertiary); cursor: pointer; }
+.panel-content { padding: 12px 14px; flex: 1; overflow-y: auto; }
+.pinned-item { padding: 8px 10px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); margin-bottom: 8px; background: rgba(255,255,255,0.03); }
+.pinned-title { font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 4px; display: flex; gap: 5px; align-items: center; }
+.pinned-text { font-size: 12px; color: var(--color-text-secondary); line-height: 1.4; }
+.member-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; color: var(--color-text-primary); }
+.member-role { margin-left: auto; font-size: 10px; color: var(--color-text-tertiary); background: rgba(255,255,255,0.07); padding: 1px 6px; border-radius: 4px; }
+.section-divider { font-size: 11px; color: var(--color-text-tertiary); margin: 10px 0 6px; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="ws-header">
+      <div class="ws-name">🛠 DevTalk</div>
+      <div class="ws-sub">On-premise · 12 members</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="section-label">Channels</div>
+      <div class="channel-item active"><span class="ch-icon">#</span>general</div>
+      <div class="channel-item"><span class="ch-icon">#</span>backend<span class="badge">3</span></div>
+      <div class="channel-item"><span class="ch-icon">#</span>frontend</div>
+      <div class="channel-item"><span class="ch-icon">#</span>devops</div>
+      <div class="channel-item"><span class="ch-icon">#</span>code-review<span class="badge">1</span></div>
+      <div class="channel-item"><span class="ch-icon">#</span>incident</div>
+      <div class="channel-item" style="color:var(--color-text-tertiary)"><span class="ch-icon">+</span>채널 추가</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="section-label">Direct</div>
+      <div class="dm-item">
+        <div class="avatar-sm" style="background:rgba(35,165,89,0.22);color:#3ba55c">JK</div>
+        <span style="font-size:13px">김정훈</span>
+        <div class="online-dot"></div>
+      </div>
+      <div class="dm-item">
+        <div class="avatar-sm" style="background:rgba(240,178,50,0.22);color:#faa81a">PY</div>
+        <span style="font-size:13px">박예린</span>
+      </div>
+      <div class="dm-item">
+        <div class="avatar-sm" style="background:rgba(88,101,242,0.22);color:#9aadff">LM</div>
+        <span style="font-size:13px">이민석</span>
+        <div class="online-dot"></div>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="me-avatar">나</div>
+      <div>
+        <div class="me-name">최현우</div>
+        <div class="me-status">● 온라인</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-area">
+    <div class="chat-header">
+      <span style="font-size:14px;color:var(--color-text-tertiary)">#</span>
+      <span class="chat-header-title">general</span>
+      <span class="chat-header-desc">팀 공통 채널 · 12명</span>
+      <div class="header-actions">
+        <button class="icon-btn" title="검색">🔍</button>
+        <button class="icon-btn" title="핀">📌</button>
+        <button class="icon-btn" title="멤버">👥</button>
+      </div>
+    </div>
+
+    <div class="messages">
+      <div class="divider">
+        <div class="divider-line"></div>
+        <div class="divider-text">오늘</div>
+        <div class="divider-line"></div>
+      </div>
+
+      <!-- Message 1 -->
+      <div class="msg-group">
+        <div class="msg-avatar" style="background:rgba(35,165,89,0.22);color:#3ba55c">JK</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-name">김정훈</span>
+            <span class="msg-time">오전 10:12</span>
+          </div>
+          <div class="msg-text">배포 파이프라인 수정했습니다. <code>docker-compose.yml</code> 확인해주세요</div>
+          <div class="code-block">
+            <div class="code-lang"><span>yaml</span><span style="cursor:pointer">복사</span></div>
+            <div class="code-content"><span class="kw">services</span>:
+  <span class="fn">api</span>:
+    <span class="kw">image</span>: <span class="str">devtalk-api:latest</span>
+    <span class="kw">ports</span>: [<span class="str">"8080:8080"</span>]
+    <span class="cm"># on-premise 전용 설정</span>
+    <span class="kw">volumes</span>:
+      - <span class="str">./data:/app/data</span></div>
+          </div>
+          <div class="reaction-bar">
+            <div class="reaction mine">👍 3</div>
+            <div class="reaction">🚀 2</div>
+            <div class="reaction">+ 반응</div>
+          </div>
+          <div class="thread-preview">
+            <div class="thread-ava" style="background:rgba(240,178,50,0.22);color:#faa81a">PY</div>
+            <div class="thread-ava" style="background:rgba(88,101,242,0.22);color:#9aadff">LM</div>
+            <span>2개 댓글 · 오전 10:24</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Message 2 -->
+      <div class="msg-group" style="margin-top:10px">
+        <div class="msg-avatar" style="background:rgba(240,178,50,0.22);color:#faa81a">PY</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-name">박예린</span>
+            <span class="msg-time">오전 10:28</span>
+          </div>
+          <div class="msg-text">스테이징 서버에서 <code>healthcheck</code> 실패하고 있어요. 로그 보니까 DB 연결 문제인 것 같은데요</div>
+          <div class="reaction-bar">
+            <div class="reaction">👀 1</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Message 3 -->
+      <div class="msg-group" style="margin-top:10px">
+        <div class="msg-avatar" style="background:rgba(88,101,242,0.22);color:#9aadff">LM</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-name">이민석</span>
+            <span class="msg-time">오전 10:31</span>
+          </div>
+          <div class="msg-text">확인해볼게요. <code>pg_hba.conf</code> 설정 문제일 수도 있어요</div>
+          <div class="code-block">
+            <div class="code-lang"><span>bash</span><span style="cursor:pointer">복사</span></div>
+            <div class="code-content"><span class="cm"># DB 연결 상태 확인</span>
+<span class="fn">psql</span> -h localhost -U devtalk -d devtalk_db \
+  -c <span class="str">"SELECT version();"</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Message 4 -->
+      <div class="msg-group" style="margin-top:10px">
+        <div class="msg-avatar" style="background:rgba(240,71,71,0.22);color:#ed4245">나</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-name">최현우</span>
+            <span class="msg-time">오전 10:35</span>
+          </div>
+          <div class="msg-text">@이민석 <code>.env</code> 파일에 <code>DB_HOST</code> 빠진 것 같아요 — 방금 푸시했습니다 🔧</div>
+          <div class="reaction-bar">
+            <div class="reaction">✅ 4</div>
+            <div class="reaction">🙌 2</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-toolbar">
+        <button class="tool-btn" title="굵게"><b>B</b></button>
+        <button class="tool-btn" title="기울임"><i>I</i></button>
+        <button class="tool-btn" title="코드블록">&lt;/&gt;</button>
+        <button class="tool-btn" title="링크">🔗</button>
+        <button class="tool-btn" title="파일">📎</button>
+        <button class="tool-btn" title="이모지">😊</button>
+      </div>
+      <div class="input-box">
+        <div class="input-field">#general 에 메시지 보내기...</div>
+        <div class="send-btn">↑</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-panel">
+    <div class="panel-header">
+      <span>📌 핀 &amp; 멤버</span>
+      <span class="panel-close">✕</span>
+    </div>
+    <div class="panel-content">
+      <div class="section-divider">📌 핀된 메시지</div>
+      <div class="pinned-item">
+        <div class="pinned-title">🔒 보안 가이드</div>
+        <div class="pinned-text">내부망 전용 · 포트 8080/5432 허용</div>
+      </div>
+      <div class="pinned-item">
+        <div class="pinned-title">📋 온콜 순서</div>
+        <div class="pinned-text">이민석 → 박예린 → 김정훈</div>
+      </div>
+      <div class="section-divider" style="margin-top:14px">👥 멤버 (12)</div>
+      <div class="member-item">
+        <div class="avatar-sm" style="background:rgba(35,165,89,0.22);color:#3ba55c">JK</div>
+        <span>김정훈</span>
+        <div class="online-dot"></div>
+        <span class="member-role">Admin</span>
+      </div>
+      <div class="member-item">
+        <div class="avatar-sm" style="background:rgba(240,178,50,0.22);color:#faa81a">PY</div>
+        <span>박예린</span>
+        <span class="member-role">Dev</span>
+      </div>
+      <div class="member-item">
+        <div class="avatar-sm" style="background:rgba(88,101,242,0.22);color:#9aadff">LM</div>
+        <span>이민석</span>
+        <div class="online-dot"></div>
+        <span class="member-role">DevOps</span>
+      </div>
+      <div class="member-item">
+        <div class="avatar-sm" style="background:rgba(240,71,71,0.22);color:#ed4245">나</div>
+        <span>최현우</span>
+        <div class="online-dot"></div>
+        <span class="member-role">Dev</span>
+      </div>
+      <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:6px">+ 8명 더보기</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

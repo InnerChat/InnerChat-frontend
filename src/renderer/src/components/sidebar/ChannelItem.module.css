@@ -1,0 +1,33 @@
+.item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  transition: background 0.12s;
+}
+
+.item:hover { background: rgba(255, 255, 255, 0.04); }
+
+.active {
+  background: var(--color-bg-info);
+  color: #9aadff;
+  font-weight: 500;
+}
+
+.icon {
+  font-size: 13px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

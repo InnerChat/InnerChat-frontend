@@ -1,0 +1,18 @@
+.badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.danger {
+  background: var(--color-bg-danger);
+  color: var(--color-text-danger);
+}
+
+.info {
+  background: var(--color-bg-info);
+  color: var(--color-text-info);
+}

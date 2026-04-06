@@ -1,0 +1,99 @@
+.page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--color-bg-tertiary);
+}
+
+.card {
+  width: 384px;
+  padding: 40px 32px;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 6px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  margin-bottom: 32px;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.oauthBtn {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: center;
+}
+
+.oauthIcon {
+  width: 16px;
+  height: 16px;
+}
+
+.localForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: var(--color-accent);
+}
+
+.error {
+  font-size: 12px;
+  color: var(--color-danger, #e53e3e);
+  margin: 0;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 16px;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border-secondary);
+}

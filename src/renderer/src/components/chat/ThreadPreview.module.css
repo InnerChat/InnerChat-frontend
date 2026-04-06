@@ -1,0 +1,19 @@
+.preview {
+  margin-top: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #9aadff;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+
+.preview:hover { background: var(--color-bg-info); }
+
+.avatars {
+  display: flex;
+  gap: 2px;
+}

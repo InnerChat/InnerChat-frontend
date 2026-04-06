@@ -1,0 +1,99 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 320px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 4px;
+}
+
+.search {
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-secondary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.search:focus {
+  border-color: #5865f2;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.userRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.1s;
+  color: var(--color-text-primary);
+  font-family: inherit;
+}
+
+.userRow:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.userRow:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.displayName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.username {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.empty {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+  padding: 16px 0;
+  margin: 0;
+}
+
+.error {
+  font-size: 12px;
+  color: #ed4245;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}

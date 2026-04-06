@@ -1,0 +1,26 @@
+/* 단순 input */
+.input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color 0.12s;
+}
+.input::placeholder { color: var(--color-text-tertiary); }
+.input:focus { border-color: var(--color-border-info); }
+
+/* 메시지 입력창 래퍼 */
+.box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  background: #2e3035;
+}

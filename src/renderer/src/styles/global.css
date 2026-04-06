@@ -1,0 +1,59 @@
+/* ── 색상 토큰 ── */
+:root {
+  /* Background */
+  --color-bg-primary:   #1e1f22;
+  --color-bg-secondary: #2b2d31;
+  --color-bg-tertiary:  #111214;
+
+  --color-bg-info:    rgba(88, 101, 242, 0.18);
+  --color-bg-success: rgba(35, 165,  89, 0.18);
+  --color-bg-warning: rgba(240, 178,  50, 0.18);
+  --color-bg-danger:  rgba(240,  71,  71, 0.18);
+
+  /* Text */
+  --color-text-primary:   #e3e5e8;
+  --color-text-secondary: #a3a6aa;
+  --color-text-tertiary:  #6d6f78;
+
+  --color-text-info:    #7289da;
+  --color-text-success: #3ba55c;
+  --color-text-warning: #faa81a;
+  --color-text-danger:  #ed4245;
+
+  /* Border */
+  --color-border-tertiary:  rgba(255, 255, 255, 0.06);
+  --color-border-secondary: rgba(255, 255, 255, 0.10);
+  --color-border-primary:   rgba(255, 255, 255, 0.16);
+  --color-border-info:    rgba(88, 101, 242, 0.45);
+  --color-border-success: rgba(35, 165,  89, 0.45);
+  --color-border-warning: rgba(240, 178,  50, 0.45);
+  --color-border-danger:  rgba(240,  71,  71, 0.45);
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 커스텀 스크롤바 ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-primary);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-tertiary); }
