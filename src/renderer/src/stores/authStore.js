@@ -17,6 +17,7 @@ export const useAuthStore = create((set, get) => ({
   refreshToken: null,
   role: 'USER',
   user: null,          // { userId, username, displayName, avatarUrl }
+  isGuest: false,
   _refreshTimer: null,
 
   setTokens(accessToken, refreshToken) {
@@ -29,13 +30,17 @@ export const useAuthStore = create((set, get) => ({
     set({ user })
   },
 
+  loginAsGuest() {
+    set({ isGuest: true })
+  },
+
   async logout() {
     const { refreshToken } = get()
     if (refreshToken) {
       await axios.post(`${BASE_URL}/api/v1/auth/logout`, { refreshToken }).catch(() => {})
     }
     get()._clearRefreshTimer()
-    set({ accessToken: null, refreshToken: null, role: 'USER', user: null })
+    set({ accessToken: null, refreshToken: null, role: 'USER', user: null, isGuest: false })
   },
 
   // 액세스 토큰 만료 14분 후 자동 갱신 (만료 1분 전)
@@ -63,7 +68,7 @@ export const useAuthStore = create((set, get) => ({
   },
 
   isAuthenticated() {
-    return !!get().accessToken
+    return !!get().accessToken || get().isGuest
   },
 
   isAdmin() {

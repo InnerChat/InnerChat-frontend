@@ -7,13 +7,10 @@ import styles from './LoginPage.module.css'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL
 
-function handleOAuth(provider) {
-  window.location.href = `${BASE_URL}/login/oauth2/authorization/${provider}`
-}
-
 export default function LoginPage() {
   const navigate = useNavigate()
   const setTokens = useAuthStore((s) => s.setTokens)
+  const loginAsGuest = useAuthStore((s) => s.loginAsGuest)
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -71,13 +68,8 @@ export default function LoginPage() {
         </div>
 
         <div className={styles.buttons}>
-          <Button variant="ghost" className={styles.oauthBtn} onClick={() => handleOAuth('google')}>
-            <img src="/icons/google.svg" alt="" className={styles.oauthIcon} />
-            Google로 로그인
-          </Button>
-          <Button variant="ghost" className={styles.oauthBtn} onClick={() => handleOAuth('github')}>
-            <img src="/icons/github.svg" alt="" className={styles.oauthIcon} />
-            GitHub로 로그인
+          <Button variant="ghost" className={styles.oauthBtn} onClick={() => { loginAsGuest(); navigate('/app', { replace: true }) }}>
+            게스트로 시작하기
           </Button>
         </div>
       </div>

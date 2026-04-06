@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -rf components/chat components/input components/panel components/sidebar components/thread components/admin components/Versions.jsx)",
+      "Bash(rm -f hooks/useStompClient.js hooks/useSSE.js hooks/useTokenRefresh.js hooks/useMessageSearch.js)",
+      "Bash(rm -f stores/channelStore.js stores/messageStore.js stores/notificationStore.js stores/stompStore.js stores/adminStore.js)",
+      "Bash(rm -f pages/OAuthCallbackPage.jsx pages/OAuthCallbackPage.module.css pages/AdminPage.jsx pages/AdminPage.module.css)",
+      "Bash(rm -f assets/base.css assets/main.css assets/electron.svg assets/wavy-lines.svg)"
+    ]
+  }
+}

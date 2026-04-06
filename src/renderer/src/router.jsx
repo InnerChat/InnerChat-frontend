@@ -1,8 +1,6 @@
 import { createHashRouter } from 'react-router-dom'
 import LoginPage from '@/pages/LoginPage'
-import OAuthCallbackPage from '@/pages/OAuthCallbackPage'
 import MainLayout from '@/components/layout/MainLayout'
-import AdminPage from '@/pages/AdminPage'
 import AuthProvider from '@/components/layout/AuthProvider'
 import { Outlet } from 'react-router-dom'
 
@@ -20,9 +18,7 @@ export const router = createHashRouter([
     element: <Root />,
     children: [
       { path: '/', element: <LoginPage /> },
-      { path: '/oauth/callback', element: <OAuthCallbackPage /> },
-      { path: '/app', element: <MainLayout /> },
-      { path: '/admin', element: <AdminPage /> }
+      { path: '/app', element: <MainLayout /> }
     ]
   }
 ])
