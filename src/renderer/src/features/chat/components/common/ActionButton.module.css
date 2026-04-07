@@ -1,0 +1,9 @@
+﻿.actionButton {
+  color: var(--color-text-secondary);
+}
+
+.active {
+  background: var(--color-bg-info);
+  border-color: var(--color-border-info);
+  color: var(--color-text-info);
+}

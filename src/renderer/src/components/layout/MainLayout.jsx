@@ -1,9 +1,13 @@
+﻿import ChatWorkspace from '@/features/chat/components/ChatWorkspace'
+import useChatLayoutState from '@/features/chat/hooks/useChatLayoutState'
 import styles from './MainLayout.module.css'
 
 export default function MainLayout() {
+  const state = useChatLayoutState()
+
   return (
-    <div className={styles.layout}>
-      {/* TODO: 새 컴포넌트 추가 예정 */}
+    <div className={styles.root}>
+      <ChatWorkspace state={state} />
     </div>
   )
 }

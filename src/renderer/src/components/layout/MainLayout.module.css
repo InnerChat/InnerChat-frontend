@@ -1,26 +1,4 @@
-.layout {
-  display: flex;
+﻿.root {
   height: 100vh;
   overflow: hidden;
-  background: var(--color-bg-primary);
-}
-
-.sidebar {
-  width: 220px;
-  min-width: 220px;
-  background: var(--color-bg-secondary);
-  border-right: 0.5px solid var(--color-border-tertiary);
-}
-
-.chat {
-  flex: 1;
-  overflow: hidden;
-  background: var(--color-bg-primary);
-}
-
-.panel {
-  width: 230px;
-  min-width: 230px;
-  background: var(--color-bg-secondary);
-  border-left: 0.5px solid var(--color-border-tertiary);
 }

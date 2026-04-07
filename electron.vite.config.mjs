@@ -19,7 +19,7 @@ export default defineConfig({
         '@': resolve('src/renderer/src'),
         '@ui': resolve('src/renderer/src/components/ui'),
         '@stores': resolve('src/renderer/src/stores'),
-        '@hooks': resolve('src/renderer/src/hooks')
+        '@features': resolve('src/renderer/src/features')
       }
     },
     plugins: [react()]
