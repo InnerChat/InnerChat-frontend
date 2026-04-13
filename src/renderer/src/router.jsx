@@ -1,16 +1,7 @@
 import { createHashRouter } from 'react-router-dom'
 import LoginPage from '@/pages/LoginPage'
 import MainLayout from '@/components/layout/MainLayout'
-import AuthProvider from '@/components/layout/AuthProvider'
-import { Outlet } from 'react-router-dom'
-
-function Root() {
-  return (
-    <AuthProvider>
-      <Outlet />
-    </AuthProvider>
-  )
-}
+import Root from './Root'
 
 // Electron에서는 createHashRouter 사용 (file:// 프로토콜 대응)
 export const router = createHashRouter([
