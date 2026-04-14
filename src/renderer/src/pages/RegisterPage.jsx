@@ -52,8 +52,7 @@ export default function RegisterPage({ open, onClose, onSuccess }) {
         loginId: loginId.trim(),
         userName: userName.trim(),
         password,
-        role: 'ADMIN',
-        status: 'ACTIVE'
+        userRole: 'ADMIN'
       })
 
       resetForm()
