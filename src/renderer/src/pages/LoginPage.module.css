@@ -97,3 +97,27 @@
   height: 1px;
   background: var(--color-border-secondary);
 }
+
+.registerLink {
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    margin: 0 0 16px;
+    text-align: center;
+  }
+
+  .registerBtn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--color-text-info);
+    text-decoration: underline;
+  }
+
+  .successMsg {
+    font-size: 12px;
+    color: var(--color-text-success, #3ba55c);
+    text-align: center;
+    margin: 0;
+  }
