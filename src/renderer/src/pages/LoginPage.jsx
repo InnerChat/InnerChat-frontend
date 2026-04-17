@@ -13,7 +13,7 @@ export default function LoginPage() {
   const setTokens = useAuthStore((s) => s.setTokens)
   const loginAsGuest = useAuthStore((s) => s.loginAsGuest)
 
-  const [username, setUsername] = useState('')
+  const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -33,7 +33,7 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
     try {
-      const { data } = await axios.post(`${BASE_URL}/api/v1/auth/login`, { username, password })
+      const { data } = await axios.post(`${BASE_URL}/api/v1/auth/login`, { loginId, password })
       setTokens(data.accessToken, data.refreshToken)
       navigate('/app', { replace: true })
     } catch (err) {
@@ -59,10 +59,10 @@ export default function LoginPage() {
             className={styles.input}
             type="text"
             placeholder="아이디"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
             required
-            autoComplete="username"
+            autoComplete="loginId"
           />
           <input
             className={styles.input}
