@@ -4,6 +4,7 @@ import axios from 'axios'
 import Button from '@ui/Button'
 import { useAuthStore } from '@stores/authStore'
 import styles from './LoginPage.module.css'
+import RegisterPage from './RegisterPage' //테스트용
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL
 
@@ -17,24 +18,24 @@ export default function LoginPage() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
 
+  //테스트용
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false)
+  const [registerSuccess, setRegisterSuccess] = useState(false)
+
+  //테스트용
+  function handleRegisterSuccess() {
+    setIsRegisterOpen(false)
+    setRegisterSuccess(true)
+  }
+
   async function handleLocalLogin(e) {
     e.preventDefault()
     setError(null)
     setLoading(true)
 
     try {
-      const { data } = await axios.post(
-        `${BASE_URL}/api/v1/auth/login`,
-        { loginId, password },
-        { withCredentials: true }
-      )
-      setLoginSession({
-        user: {
-          userId: data?.userId,
-          userName: data?.userName
-        },
-        role: data?.role
-      })
+      const { data } = await axios.post(`${BASE_URL}/api/v1/auth/login`, { loginId, password })
+      setTokens(data.accessToken, data.refreshToken)
       navigate('/app', { replace: true })
     } catch (err) {
       setError(err.response?.data?.message ?? '아이디 또는 비밀번호가 올바르지 않습니다.')
@@ -50,6 +51,11 @@ export default function LoginPage() {
         <p className={styles.subtitle}>팀 협업 메신저</p>
 
         <form onSubmit={handleLocalLogin} className={styles.localForm}>
+          {registerSuccess && (
+    <p className={styles.successMsg}>
+      회원가입이 완료됐습니다. 로그인해주세요.
+    </p>
+  )}
           <input
             className={styles.input}
             type="text"
@@ -57,7 +63,7 @@ export default function LoginPage() {
             value={loginId}
             onChange={(e) => setLoginId(e.target.value)}
             required
-            autoComplete="username"
+            autoComplete="loginId"
           />
           <input
             className={styles.input}
@@ -73,7 +79,12 @@ export default function LoginPage() {
             {loading ? '로그인 중...' : '로그인'}
           </Button>
         </form>
-
+        <p className={styles.registerLink}>
+          계정이 없으신가요?{' '}
+          <button type="button" className={styles.registerBtn} onClick={() => setIsRegisterOpen(true)}>
+            회원가입
+          </button>
+        </p>
         <div className={styles.divider}>
           <span>또는</span>
         </div>
@@ -91,6 +102,11 @@ export default function LoginPage() {
           </Button>
         </div>
       </div>
+      <RegisterPage
+    open={isRegisterOpen}
+    onClose={() => setIsRegisterOpen(false)}
+    onSuccess={handleRegisterSuccess}
+  />
     </div>
   )
 }
