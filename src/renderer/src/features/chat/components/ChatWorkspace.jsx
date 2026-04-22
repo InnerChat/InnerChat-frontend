@@ -1,4 +1,5 @@
 ﻿/* eslint-disable react/prop-types */
+import { useEffect, useRef, useState } from 'react'
 import Avatar from '@ui/Avatar'
 import Divider from '@ui/Divider'
 import ActionButton from './common/ActionButton'
@@ -22,6 +23,18 @@ const INPUT_TOOL_ACTIONS = [
 ]
 
 export default function ChatWorkspace({ state }) {
+  const messagesRef = useRef(null)
+  const [isCreateDmComposerOpen, setIsCreateDmComposerOpen] = useState(false)
+  const [workspaceMembers, setWorkspaceMembers] = useState([])
+  const [memberQuery, setMemberQuery] = useState('')
+  const [selectedDmMembers, setSelectedDmMembers] = useState([])
+  const [isLoadingWorkspaceMembers, setIsLoadingWorkspaceMembers] = useState(false)
+  const [isCheckingExistingDm, setIsCheckingExistingDm] = useState(false)
+  const [inviteUserIds, setInviteUserIds] = useState('')
+  const [isSubmittingCreateDm, setIsSubmittingCreateDm] = useState(false)
+  const [isSubmittingInvite, setIsSubmittingInvite] = useState(false)
+  const [isSubmittingLeave, setIsSubmittingLeave] = useState(false)
+
   const {
     workspaceInfo,
     myProfile,
@@ -37,6 +50,167 @@ export default function ChatWorkspace({ state }) {
   } = state
 
   const roomPrefix = selectedRoom?.type === 'channel' ? '#' : selectedRoom?.type === 'dm' ? '@' : ''
+  const isDmSelected = selectedRoom?.type === 'dm' && !!selectedRoom?.id
+
+  useEffect(() => {
+    const el = messagesRef.current
+    if (!el) {
+      return
+    }
+
+    el.scrollTop = el.scrollHeight
+  }, [currentMessages, selectedRoom?.id, selectedRoom?.type])
+
+  function parseUserIds(value) {
+    return value
+      .split(',')
+      .map((v) => Number(v.trim()))
+      .filter((v) => Number.isInteger(v) && v > 0)
+  }
+
+  function normalizeWorkspaceMembers(payload) {
+    const source = Array.isArray(payload) ? payload : Array.isArray(payload?.members) ? payload.members : []
+
+    return source
+      .map((member) => {
+        const id = Number(member?.userId ?? member?.id ?? member?.memberId ?? 0)
+        const name =
+          member?.userName ?? member?.name ?? member?.nickname ?? (id > 0 ? `User ${id}` : '')
+
+        return {
+          id,
+          name: String(name).trim()
+        }
+      })
+      .filter((member) => member.id > 0 && member.name)
+  }
+
+  async function handleToggleCreateDmComposer() {
+    setIsCreateDmComposerOpen((prev) => !prev)
+
+    if (isCreateDmComposerOpen) {
+      return
+    }
+
+    try {
+      setIsLoadingWorkspaceMembers(true)
+      const payload = await actions.loadWorkspaceMembersForDm()
+      setWorkspaceMembers(normalizeWorkspaceMembers(payload))
+    } finally {
+      setIsLoadingWorkspaceMembers(false)
+    }
+  }
+
+  function handleSelectDmMember(member) {
+    setSelectedDmMembers((prev) => {
+      if (prev.some((item) => item.id === member.id)) {
+        return prev
+      }
+      return [...prev, member]
+    })
+    setMemberQuery('')
+  }
+
+  function handleRemoveDmMember(memberId) {
+    setSelectedDmMembers((prev) => prev.filter((item) => item.id !== memberId))
+  }
+
+  async function handleCreateDm(event) {
+    event.preventDefault()
+    const participantIdList = selectedDmMembers.map((member) => member.id)
+    if (participantIdList.length === 0) {
+      return
+    }
+
+    try {
+      setIsSubmittingCreateDm(true)
+      await actions.createDmRoom(participantIdList)
+      setSelectedDmMembers([])
+      setMemberQuery('')
+      setIsCreateDmComposerOpen(false)
+    } finally {
+      setIsSubmittingCreateDm(false)
+    }
+  }
+
+  async function handleInviteParticipants(event) {
+    event.preventDefault()
+    if (!isDmSelected) {
+      return
+    }
+
+    const userIdList = parseUserIds(inviteUserIds)
+    if (userIdList.length === 0) {
+      return
+    }
+
+    try {
+      setIsSubmittingInvite(true)
+      await actions.addDmParticipants(selectedRoom.id, userIdList)
+      setInviteUserIds('')
+    } finally {
+      setIsSubmittingInvite(false)
+    }
+  }
+
+  async function handleLeaveRoom() {
+    if (!isDmSelected) {
+      return
+    }
+
+    try {
+      setIsSubmittingLeave(true)
+      await actions.leaveDmRoom(selectedRoom.id)
+    } finally {
+      setIsSubmittingLeave(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isCreateDmComposerOpen) {
+      return undefined
+    }
+
+    const keyword = memberQuery.trim()
+    if (!keyword) {
+      return undefined
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsCheckingExistingDm(true)
+        const existingDm = await actions.lookupExistingDmRoomWithUser(
+          selectedDmMembers.map((member) => member.id)
+        )
+        if (existingDm?.dmRoomId) {
+          actions.selectDirectMessage(existingDm.dmRoomId)
+          setIsCreateDmComposerOpen(false)
+        }
+      } finally {
+        setIsCheckingExistingDm(false)
+      }
+    }, 250)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [actions, isCreateDmComposerOpen, memberQuery, selectedDmMembers])
+
+  const selectedDmMemberIdSet = new Set(selectedDmMembers.map((member) => member.id))
+  const filteredWorkspaceMembers = workspaceMembers
+    .filter((member) => {
+      if (selectedDmMemberIdSet.has(member.id)) {
+        return false
+      }
+
+      const keyword = memberQuery.trim()
+      if (!keyword) {
+        return true
+      }
+
+      return member.name.toLowerCase().includes(keyword.toLowerCase()) || String(member.id).includes(keyword)
+    })
+    .slice(0, 8)
 
   return (
     <div className={styles.layout}>
@@ -62,7 +236,17 @@ export default function ChatWorkspace({ state }) {
         </section>
 
         <section className={styles.sidebarSection}>
-          <h2 className={styles.sectionLabel}>Direct</h2>
+          <div className={styles.sectionLabelRow}>
+            <h2 className={styles.sectionLabel}>Direct</h2>
+            <button
+              type="button"
+              className={styles.sectionAddButton}
+              onClick={handleToggleCreateDmComposer}
+              title="DM 추가"
+            >
+              +
+            </button>
+          </div>
           {directMessages.map((dm) => (
             <NavItemButton
               key={dm.id}
@@ -73,6 +257,65 @@ export default function ChatWorkspace({ state }) {
               onClick={() => actions.selectDirectMessage(dm.id)}
             />
           ))}
+
+          {isCreateDmComposerOpen ? (
+            <form className={styles.dmComposer} onSubmit={handleCreateDm}>
+              {selectedDmMembers.length > 0 ? (
+                <div className={styles.dmMemberChipList}>
+                  {selectedDmMembers.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      className={styles.dmMemberChip}
+                      onClick={() => handleRemoveDmMember(member.id)}
+                      title="선택 해제"
+                    >
+                      <span>{member.name}</span>
+                      <span className={styles.dmChipRemove}>×</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              <input
+                className={styles.dmComposerInput}
+                value={memberQuery}
+                placeholder="이름으로 멤버 검색"
+                onChange={(event) => setMemberQuery(event.target.value)}
+              />
+
+              {memberQuery.trim() ? (
+                <div className={styles.dmSuggestionList}>
+                  {filteredWorkspaceMembers.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      className={styles.dmSuggestionItem}
+                      onClick={() => handleSelectDmMember(member)}
+                    >
+                      <span>{member.name}</span>
+                      <span className={styles.dmSuggestionMeta}>#{member.id}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {isLoadingWorkspaceMembers ? (
+                <p className={styles.dmHelperText}>멤버 목록 불러오는 중...</p>
+              ) : null}
+              {isCheckingExistingDm ? (
+                <p className={styles.dmHelperText}>기존 DM 확인 중...</p>
+              ) : null}
+
+              <button
+                className={styles.inlineButton}
+                type="submit"
+                disabled={isSubmittingCreateDm || selectedDmMembers.length === 0}
+              >
+                {isSubmittingCreateDm ? '생성중' : 'DM 생성'}
+              </button>
+            </form>
+          ) : null}
         </section>
 
         <footer className={styles.sidebarFooter}>
@@ -107,7 +350,7 @@ export default function ChatWorkspace({ state }) {
             <ActionButton
               variant="icon"
               title={isRightPanelOpen ? '오른쪽 패널 닫기' : '오른쪽 패널 열기'}
-              isActive={isRightPanelOpen}
+              isActive={isRightPanelOpen} 
               onClick={actions.toggleRightPanel}
             >
               ▤
@@ -115,7 +358,7 @@ export default function ChatWorkspace({ state }) {
           </div>
         </header>
 
-        <section className={styles.messages}>
+        <section ref={messagesRef} className={styles.messages}>
           {currentMessages.length > 0 ? <Divider label="오늘" /> : null}
           {currentMessages.map((message) => (
             <MessageGroup
@@ -199,6 +442,36 @@ export default function ChatWorkspace({ state }) {
                 <span className={styles.memberRole}>{member.role}</span>
               </div>
             ))}
+
+            {isDmSelected ? (
+              <>
+                <h3 className={styles.panelSectionTitle}>참여자 관리</h3>
+                <form className={styles.panelForm} onSubmit={handleInviteParticipants}>
+                  <input
+                    className={styles.panelInput}
+                    value={inviteUserIds}
+                    placeholder="추가 userId (쉼표 구분)"
+                    onChange={(event) => setInviteUserIds(event.target.value)}
+                  />
+                  <button
+                    className={styles.panelPrimaryButton}
+                    type="submit"
+                    disabled={isSubmittingInvite}
+                  >
+                    {isSubmittingInvite ? '추가중' : '참여자 추가'}
+                  </button>
+                </form>
+
+                <button
+                  type="button"
+                  className={styles.panelDangerButton}
+                  onClick={handleLeaveRoom}
+                  disabled={isSubmittingLeave}
+                >
+                  {isSubmittingLeave ? '처리중' : '방 나가기'}
+                </button>
+              </>
+            ) : null}
           </div>
         </aside>
       ) : null}

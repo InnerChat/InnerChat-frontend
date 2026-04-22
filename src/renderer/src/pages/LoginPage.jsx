@@ -34,8 +34,16 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { data } = await axios.post(`${BASE_URL}/api/v1/auth/login`, { loginId, password })
-      setTokens(data.accessToken, data.refreshToken)
+      const { data } = await axios.post(`${BASE_URL}/auth/login`, { loginId, password })
+      setLoginSession({
+        user: {
+          userId: data.userId,
+          userName: data.userName
+        },
+        role: data.role,
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken
+      })
       navigate('/app', { replace: true })
     } catch (err) {
       setError(err.response?.data?.message ?? '아이디 또는 비밀번호가 올바르지 않습니다.')

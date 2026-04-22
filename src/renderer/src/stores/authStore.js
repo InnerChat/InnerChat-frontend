@@ -7,13 +7,17 @@ export const useAuthStore = create((set, get) => ({
   isLoggedIn: false,
   role: null,
   user: null,          // { userId, userName }
+  accessToken: null,
+  refreshToken: null,
   isGuest: false,
 
-  setLoginSession({ user = null, role = null } = {}) {
+  setLoginSession({ user = null, role = null, accessToken = null, refreshToken = null } = {}) {
     set({
       isLoggedIn: true,
       user,
       role,
+      accessToken,
+      refreshToken,
       isGuest: false
     })
   },
@@ -27,8 +31,15 @@ export const useAuthStore = create((set, get) => ({
   },
 
   async logout() {
-    await axios.post(`${BASE_URL}/api/v1/auth/logout`, {}, { withCredentials: true }).catch(() => {})
-    set({ isLoggedIn: false, role: null, user: null, isGuest: false })
+    await axios.post(`${BASE_URL}/auth/logout`, {}, { withCredentials: true }).catch(() => {})
+    set({
+      isLoggedIn: false,
+      role: null,
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isGuest: false
+    })
   },
 
   isAuthenticated() {
