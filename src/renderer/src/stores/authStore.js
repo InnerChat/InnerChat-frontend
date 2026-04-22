@@ -3,27 +3,23 @@ import axios from 'axios'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL
 
-function parseRole(token) {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return payload.role ?? 'USER'
-  } catch {
-    return 'USER'
-  }
-}
-
 export const useAuthStore = create((set, get) => ({
+  isLoggedIn: false,
+  role: null,
+  user: null,          // { userId, userName }
   accessToken: null,
   refreshToken: null,
-  role: 'USER',
-  user: null,          // { userId, username, displayName, avatarUrl }
   isGuest: false,
-  _refreshTimer: null,
 
-  setTokens(accessToken, refreshToken) {
-    get()._clearRefreshTimer()
-    set({ accessToken, refreshToken, role: parseRole(accessToken) })
-    get()._scheduleRefresh()
+  setLoginSession({ user = null, role = null, accessToken = null, refreshToken = null } = {}) {
+    set({
+      isLoggedIn: true,
+      user,
+      role,
+      accessToken,
+      refreshToken,
+      isGuest: false
+    })
   },
 
   setUser(user) {
@@ -35,40 +31,19 @@ export const useAuthStore = create((set, get) => ({
   },
 
   async logout() {
-    const { refreshToken } = get()
-    if (refreshToken) {
-      await axios.post(`${BASE_URL}/api/v1/auth/logout`, { refreshToken }).catch(() => {})
-    }
-    get()._clearRefreshTimer()
-    set({ accessToken: null, refreshToken: null, role: 'USER', user: null, isGuest: false })
-  },
-
-  // 액세스 토큰 만료 14분 후 자동 갱신 (만료 1분 전)
-  _scheduleRefresh() {
-    const timer = setTimeout(() => get()._refresh(), 14 * 60 * 1000)
-    set({ _refreshTimer: timer })
-  },
-
-  _clearRefreshTimer() {
-    const { _refreshTimer } = get()
-    if (_refreshTimer) clearTimeout(_refreshTimer)
-    set({ _refreshTimer: null })
-  },
-
-  async _refresh() {
-    const { refreshToken } = get()
-    if (!refreshToken) return
-
-    try {
-      const { data } = await axios.post(`${BASE_URL}/api/v1/auth/refresh`, { refreshToken })
-      get().setTokens(data.accessToken, data.refreshToken)
-    } catch {
-      get().logout()
-    }
+    await axios.post(`${BASE_URL}/auth/logout`, {}, { withCredentials: true }).catch(() => {})
+    set({
+      isLoggedIn: false,
+      role: null,
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isGuest: false
+    })
   },
 
   isAuthenticated() {
-    return !!get().accessToken || get().isGuest
+    return get().isLoggedIn || get().isGuest
   },
 
   isAdmin() {

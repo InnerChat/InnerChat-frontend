@@ -7,7 +7,7 @@ const PUBLIC_PATHS = ['/', '/oauth/callback']
 export default function AuthProvider({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAuthenticated, isAdmin, accessToken } = useAuthStore()
+  const { isAuthenticated, isAdmin } = useAuthStore()
 
   useEffect(() => {
     const isPublic = PUBLIC_PATHS.includes(location.pathname)
@@ -26,12 +26,6 @@ export default function AuthProvider({ children }) {
       navigate('/app', { replace: true })
     }
   }, [location.pathname])
-
-  useEffect(() => {
-    if (accessToken) {
-      useAuthStore.getState()._scheduleRefresh()
-    }
-  }, [])
 
   return children
 }

@@ -35,6 +35,121 @@
   padding: 10px 0 4px;
 }
 
+.sectionLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 14px;
+}
+
+.sectionAddButton {
+  width: 20px;
+  height: 20px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.sectionAddButton:hover {
+  color: var(--color-text-primary);
+}
+
+.dmComposer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 14px 0;
+}
+
+.dmComposerInput {
+  width: 100%;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  padding: 7px 8px;
+}
+
+.dmMemberChipList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dmMemberChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 999px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.dmChipRemove {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.dmSuggestionList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.dmSuggestionItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.dmSuggestionMeta {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.dmHelperText {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.inlineButton {
+  width: 100%;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: var(--color-bg-info);
+  color: var(--color-text-info);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 8px;
+  cursor: pointer;
+}
+
+.inlineButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .sectionLabel {
   padding: 0 14px 4px;
   font-size: 11px;
@@ -409,6 +524,53 @@
 .panelContent {
   padding: 12px 14px;
   overflow-y: auto;
+}
+
+.panelForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.panelInput {
+  width: 100%;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  padding: 7px 8px;
+}
+
+.panelPrimaryButton {
+  width: 100%;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: var(--color-bg-info);
+  color: var(--color-text-info);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 8px;
+  cursor: pointer;
+}
+
+.panelDangerButton {
+  width: 100%;
+  border: 0.5px solid rgba(239, 68, 68, 0.45);
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 8px;
+  cursor: pointer;
+}
+
+.panelPrimaryButton:disabled,
+.panelDangerButton:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .panelSectionTitle {

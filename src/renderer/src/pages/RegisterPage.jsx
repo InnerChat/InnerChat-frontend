@@ -48,7 +48,7 @@ export default function RegisterPage({ open, onClose, onSuccess }) {
     setLoading(true)
 
     try {
-      await axios.post(`${BASE_URL}/api/v1/auth/register`, {
+      await axios.post(`${BASE_URL}/auth/register`, {
         loginId: loginId.trim(),
         userName: userName.trim(),
         password,
