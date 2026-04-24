@@ -252,6 +252,7 @@ export default function ChatWorkspace({ state }) {
               key={dm.id}
               avatar={{ colorKey: dm.colorKey, label: dm.initials }}
               label={dm.name}
+              unreadCount={dm.unreadCount}
               showOnline={dm.isOnline}
               isActive={selectedRoom?.type === 'dm' && selectedRoom?.id === dm.id}
               onClick={() => actions.selectDirectMessage(dm.id)}

@@ -13,12 +13,46 @@ function buildAuthHeaders(accessToken) {
   }
 }
 
+function normalizeDmRoomsResponse(payload) {
+  if (Array.isArray(payload)) {
+    return payload
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    return []
+  }
+
+  const candidates = [
+    payload.rooms,
+    payload.dmRooms,
+    payload.roomList,
+    payload.list,
+    payload.items,
+    payload.content,
+    payload.data?.rooms,
+    payload.data?.dmRooms,
+    payload.data?.roomList,
+    payload.data?.list,
+    payload.data?.items,
+    payload.data?.content,
+    payload.result?.rooms,
+    payload.result?.dmRooms,
+    payload.result?.roomList,
+    payload.result?.list,
+    payload.result?.items,
+    payload.result?.content
+  ]
+
+  const found = candidates.find((candidate) => Array.isArray(candidate))
+  return found ?? []
+}
+
 export async function readDmRoomList({ accessToken }) {
   const { data } = await axios.get(`${API_PREFIX}/dm`, {
     headers: buildAuthHeaders(accessToken)
   })
 
-  return data
+  return normalizeDmRoomsResponse(data)
 }
 
 export async function createDmRoom({ workspaceId, participantIdList, accessToken }) {
@@ -66,20 +100,6 @@ export async function readDmMessages({ dmRoomId, cursor, accessToken }) {
   })
 
   return data
-}
-
-export async function createDmMessageByHttp({
-  workspaceId,
-  dmRoomId,
-  threadRootMessageId,
-  content,
-  accessToken
-}) {
-  await axios.post(
-    `${API_PREFIX}/dm/chat`,
-    { workspaceId, dmRoomId, threadRootMessageId, content },
-    { headers: buildAuthHeaders(accessToken) }
-  )
 }
 
 export async function readWorkspaceMembersForDm({ workspaceId, accessToken }) {

@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useStompClient from '@/hooks/useStompClient'
 import { useAuthStore } from '@stores/authStore'
 import {
-  createDmMessageByHttp,
   createDmRoom,
   createDmRoomParticipants,
   readDmMessages,
@@ -12,7 +11,7 @@ import {
   updateLastReadDmMessage
 } from '../api/dmApi'
 
-const WORKSPACE_ID = Number(import.meta.env.VITE_WORKSPACE_ID ?? 1)
+const WORKSPACE_ID = Number(import.meta.env.VITE_WORKSPACE_ID)
 const STOMP_SEND_DESTINATION = '/app/dm/chat/send'
 
 const INITIAL_LAYOUT_DATA = {
@@ -66,7 +65,6 @@ function mapMessage(payload) {
   return {
     id: payload.dmMessageId,
     dmMessageId: payload.dmMessageId,
-    clientMessageId: payload.clientMessageId ?? null,
     rawCreatedAt: payload.createdAt,
     authorId: payload.authorId,
     author: {
@@ -81,20 +79,16 @@ function mapMessage(payload) {
 }
 
 function upsertMessage(messages, incoming) {
-  const withoutTemp = incoming.clientMessageId
-    ? messages.filter((message) => message.clientMessageId !== incoming.clientMessageId)
-    : messages
-
-  const existingIndex = withoutTemp.findIndex(
+  const existingIndex = messages.findIndex(
     (message) => message.dmMessageId === incoming.dmMessageId
   )
   if (existingIndex >= 0) {
-    const cloned = [...withoutTemp]
+    const cloned = [...messages]
     cloned[existingIndex] = incoming
     return cloned
   }
 
-  const next = [...withoutTemp, incoming]
+  const next = [...messages, incoming]
   next.sort((a, b) => {
     const dateDiff = new Date(a.rawCreatedAt).getTime() - new Date(b.rawCreatedAt).getTime()
     if (dateDiff !== 0) {
@@ -106,6 +100,17 @@ function upsertMessage(messages, incoming) {
   return next
 }
 
+function isUnreadTriggerDmEvent(event = {}) {
+  const eventType = String(event?.eventType ?? '')
+  const dmMessageId = Number(event?.dmMessageId ?? 0)
+
+  if (dmMessageId > 0) {
+    return true
+  }
+
+  return eventType.includes('MESSAGE')
+}
+
 export default function useChatLayoutState() {
   const [layoutData, setLayoutData] = useState(INITIAL_LAYOUT_DATA)
   const [selectedRoom, setSelectedRoom] = useState(null)
@@ -115,6 +120,11 @@ export default function useChatLayoutState() {
   const user = useAuthStore((s) => s.user)
   const accessToken = useAuthStore((s) => s.accessToken)
   const { clientRef, isConnected } = useStompClient()
+  const dmRoomRefreshTimerRef = useRef(null)
+  const dmRoomNoticeDedupRef = useRef(new Set())
+  const dmInboxEventDedupRef = useRef(new Set())
+  const dmRoomTopicSubscriptionsRef = useRef(new Map())
+  const selectedRoomRef = useRef(selectedRoom)
 
   const currentRoomKey = buildRoomKey(selectedRoom)
 
@@ -125,12 +135,20 @@ export default function useChatLayoutState() {
 
   const currentMessages = layoutData.messagesByRoom[currentRoomKey] ?? []
 
-  const loadDmRooms = useCallback(async () => {
-    if (!user?.userId) {
-      return
-    }
+  useEffect(() => {
+    selectedRoomRef.current = selectedRoom
+  }, [selectedRoom])
 
+  const loadDmRooms = useCallback(async () => {
     const rooms = await readDmRoomList({ accessToken })
+    console.log('[DM rooms loaded]', {
+      roomCount: Array.isArray(rooms) ? rooms.length : 0,
+      sampleRoomId:
+        Array.isArray(rooms) && rooms.length > 0
+          ? (rooms[0]?.dmRoomId ?? rooms[0]?.roomId ?? null)
+          : null,
+      hasUserId: Boolean(user?.userId)
+    })
 
     const mappedDirectMessages = (rooms ?? []).map((room) => {
       const names = Array.isArray(room.participantNameList) ? room.participantNameList : []
@@ -154,21 +172,42 @@ export default function useChatLayoutState() {
       }
     })
 
-    setLayoutData((prev) => ({
-      ...prev,
-      myProfile: {
-        id: user.userId,
-        name: user.userName ?? '',
-        initials: toInitials(user.userName ?? ''),
-        colorKey: pickColorKey(user.userId),
-        status: 'ONLINE'
-      },
-      directMessages: mappedDirectMessages,
-      roomMetaByRoomKey: {
-        ...prev.roomMetaByRoomKey,
-        ...roomMetaByRoomKey
+    setLayoutData((prev) => {
+      const prevDmById = new Map((prev.directMessages ?? []).map((dm) => [Number(dm.id), dm]))
+      const selectedDmId =
+        selectedRoomRef.current?.type === 'dm' ? Number(selectedRoomRef.current.id) : 0
+
+      const directMessages = mappedDirectMessages.map((dm) => {
+        const prevDm = prevDmById.get(Number(dm.id))
+        const isActiveRoom = selectedDmId > 0 && Number(dm.id) === selectedDmId
+        const unreadCount = isActiveRoom
+          ? 0
+          : Math.max(Number(dm.unreadCount ?? 0), Number(prevDm?.unreadCount ?? 0))
+
+        return {
+          ...dm,
+          unreadCount
+        }
+      })
+
+      return {
+        ...prev,
+        myProfile: user?.userId
+          ? {
+              id: user.userId,
+              name: user.userName ?? '',
+              initials: toInitials(user.userName ?? ''),
+              colorKey: pickColorKey(user.userId),
+              status: 'ONLINE'
+            }
+          : prev.myProfile,
+        directMessages,
+        roomMetaByRoomKey: {
+          ...prev.roomMetaByRoomKey,
+          ...roomMetaByRoomKey
+        }
       }
-    }))
+    })
 
     setSelectedRoom((prev) => {
       if (prev?.type === 'dm' && mappedDirectMessages.some((dm) => dm.id === prev.id)) {
@@ -231,30 +270,278 @@ export default function useChatLayoutState() {
     })
   }, [loadRoomMessages, selectedRoom?.id, selectedRoom?.type])
 
-  useEffect(() => {
-    if (!isConnected || selectedRoom?.type !== 'dm' || !selectedRoom.id) {
-      return undefined
-    }
-
-    const roomId = selectedRoom.id
-    const subscription = clientRef.current?.subscribe(`/topic/dm/rooms/${roomId}`, (frame) => {
+  const handleDmRoomFrame = useCallback((roomId, frame) => {
+    try {
       const payload = JSON.parse(frame.body)
       const incoming = mapMessage(payload)
       const roomKey = `dm:${roomId}`
 
-      setLayoutData((prev) => ({
-        ...prev,
-        messagesByRoom: {
-          ...prev.messagesByRoom,
-          [roomKey]: upsertMessage(prev.messagesByRoom[roomKey] ?? [], incoming)
+      setLayoutData((prev) => {
+        const selectedDmId =
+          selectedRoomRef.current?.type === 'dm' ? Number(selectedRoomRef.current.id) : 0
+        const isActiveRoom = selectedDmId > 0 && selectedDmId === Number(roomId)
+
+        return {
+          ...prev,
+          messagesByRoom: {
+            ...prev.messagesByRoom,
+            [roomKey]: upsertMessage(prev.messagesByRoom[roomKey] ?? [], incoming)
+          },
+          directMessages: prev.directMessages.map((dm) => {
+            if (Number(dm.id) !== Number(roomId)) {
+              return dm
+            }
+
+            return {
+              ...dm,
+              unreadCount: isActiveRoom ? 0 : Number(dm.unreadCount ?? 0) + 1
+            }
+          })
         }
-      }))
+      })
+    } catch (error) {
+      console.error('Failed to parse DM room message', {
+        roomId,
+        body: frame?.body,
+        error
+      })
+    }
+  }, [])
+
+  const ensureDmRoomTopicSubscription = useCallback(
+    (roomId) => {
+      const normalizedRoomId = Number(roomId)
+
+      console.log('[DM room topic subscribed request successs]', { roomId: normalizedRoomId })
+
+      if (dmRoomTopicSubscriptionsRef.current.has(normalizedRoomId)) {
+        return
+      }
+
+      const client = clientRef.current
+      if (!client?.connected) {
+        return
+      }
+
+      try {
+        const subscription = client.subscribe(
+          `/topic/dm/rooms/${normalizedRoomId}`,
+          (frame) => handleDmRoomFrame(normalizedRoomId, frame),
+          { id: `dm-room-${normalizedRoomId}` }
+        )
+        dmRoomTopicSubscriptionsRef.current.set(normalizedRoomId, subscription)
+        console.log('[DM room topic subscribed]', { roomId: normalizedRoomId })
+      } catch (error) {
+        console.error('DM room topic subscribe failed', { roomId: normalizedRoomId, error })
+      }
+    },
+    [clientRef, handleDmRoomFrame]
+  )
+
+  useEffect(() => {
+    if (!isConnected) {
+      dmRoomTopicSubscriptionsRef.current.forEach((subscription) => subscription?.unsubscribe())
+      dmRoomTopicSubscriptionsRef.current.clear()
+      return
+    }
+
+    const activeRoomIds = new Set(
+      (layoutData.directMessages ?? [])
+        .map((dm) => Number(dm?.id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+
+    activeRoomIds.forEach((roomId) => {
+      ensureDmRoomTopicSubscription(roomId)
     })
 
-    return () => {
+    dmRoomTopicSubscriptionsRef.current.forEach((subscription, roomId) => {
+      if (activeRoomIds.has(Number(roomId))) {
+        return
+      }
+
       subscription?.unsubscribe()
+      dmRoomTopicSubscriptionsRef.current.delete(roomId)
+      console.log('[DM room topic unsubscribed]', { roomId })
+    })
+  }, [ensureDmRoomTopicSubscription, isConnected, layoutData.directMessages])
+
+  useEffect(() => {
+    if (!isConnected) {
+      return undefined
     }
-  }, [clientRef, isConnected, selectedRoom?.id, selectedRoom?.type])
+
+    const scheduleRefresh = (withRetry = false) => {
+      if (dmRoomRefreshTimerRef.current) {
+        clearTimeout(dmRoomRefreshTimerRef.current)
+      }
+
+      dmRoomRefreshTimerRef.current = setTimeout(() => {
+        loadDmRooms().catch((error) => {
+          console.error('DM room list refresh failed', error)
+        })
+      }, 120)
+
+      if (withRetry) {
+        setTimeout(() => {
+          loadDmRooms().catch((error) => {
+            console.error('DM room list delayed refresh failed', error)
+          })
+        }, 900)
+      }
+    }
+
+    const client = clientRef.current
+    if (!client?.connected) {
+      console.warn('[DM inbox subscribe skipped] client is not connected yet')
+      return undefined
+    }
+
+    const inboxDestinations = ['/user/queue/dm/events', '/queue/dm/events']
+    console.log('[DM inbox subscribe attempt]', {
+      destinations: inboxDestinations,
+      connected: client.connected
+    })
+
+    const handleInboxFrame = (frame, destination) => {
+      try {
+        const event = JSON.parse(frame.body)
+        const dmRoomId = Number(event?.dmRoomId)
+        const eventType = String(event?.eventType ?? '')
+        const isDmMessageCreatedEvent = eventType === 'DM_MESSAGE_CREATED'
+        const hasRoomSubscription =
+          dmRoomId > 0 && dmRoomTopicSubscriptionsRef.current.has(Number(dmRoomId))
+        const unreadTriggerEvent = isUnreadTriggerDmEvent(event)
+        const messageDedupKey =
+          Number(event?.dmMessageId ?? 0) > 0
+            ? `msg:${dmRoomId}:${Number(event.dmMessageId)}`
+            : `evt:${eventType}:${dmRoomId}`
+        console.log('[DM inbox received]', {
+          destination,
+          eventType,
+          dmRoomId: event?.dmRoomId,
+          dmMessageId: event?.dmMessageId,
+          authorId: event?.authorId
+        })
+
+
+        ensureDmRoomTopicSubscription(dmRoomId)
+        
+
+        if (isDmMessageCreatedEvent && !hasRoomSubscription) {
+          loadDmRooms().catch((error) => {
+            console.error('DM room list refresh on missed subscription failed', error)
+          })
+        }
+        
+
+        if (unreadTriggerEvent) {
+          if (!dmInboxEventDedupRef.current.has(messageDedupKey)) {
+            dmInboxEventDedupRef.current.add(messageDedupKey)
+            if (dmInboxEventDedupRef.current.size > 2000) {
+              dmInboxEventDedupRef.current.clear()
+            }
+
+            setLayoutData((prev) => {
+              const selectedDmId =
+                selectedRoomRef.current?.type === 'dm' ? Number(selectedRoomRef.current.id) : 0
+              const isActiveRoom = selectedDmId > 0 && selectedDmId === Number(dmRoomId)
+              const existingIndex = prev.directMessages.findIndex(
+                (dm) => Number(dm.id) === Number(dmRoomId)
+              )
+
+              if (existingIndex >= 0) {
+                const nextDirectMessages = [...prev.directMessages]
+                const target = nextDirectMessages[existingIndex]
+                nextDirectMessages[existingIndex] = {
+                  ...target,
+                  unreadCount: isActiveRoom ? 0 : Number(target.unreadCount ?? 0) + 1
+                }
+
+                return {
+                  ...prev,
+                  directMessages: nextDirectMessages
+                }
+              }
+
+              const fallbackName = `DM ${dmRoomId}`
+              const fallbackDm = {
+                id: dmRoomId,
+                name: fallbackName,
+                initials: toInitials(fallbackName),
+                colorKey: pickColorKey(dmRoomId),
+                isOnline: false,
+                unreadCount: isActiveRoom ? 0 : 1
+              }
+
+              return {
+                ...prev,
+                directMessages: [fallbackDm, ...prev.directMessages],
+                roomMetaByRoomKey: {
+                  ...prev.roomMetaByRoomKey,
+                  [`dm:${dmRoomId}`]: {
+                    title: fallbackName,
+                    description: 'Direct Message'
+                  }
+                }
+              }
+            })
+          }
+        }
+
+        // Refresh DM list for any valid DM event so backend event type changes do not break UI updates.
+        scheduleRefresh(true)
+      } catch (error) {
+        console.error('Failed to parse DM inbox event', {
+          destination,
+          body: frame?.body,
+          error
+        })
+      }
+    }
+
+    const subscriptions = inboxDestinations
+      .map((destination, index) => {
+        try {
+          const id = `dm-inbox-${index}-${Date.now()}`
+          return client.subscribe(
+            destination,
+            (frame) => {
+              try {
+                const payload = JSON.parse(frame?.body ?? '{}')
+                const dmRoomId = Number(payload?.dmRoomId)
+                if (Number.isInteger(dmRoomId)) {
+                  ensureDmRoomTopicSubscription(dmRoomId)
+                }
+              } catch (preEnsureError) {
+                console.warn('DM inbox pre-ensure parse failed', {
+                  destination,
+                  body: frame?.body,
+                  error: preEnsureError
+                })
+              }
+
+              handleInboxFrame(frame, destination)
+            },
+            { id }
+          )
+        } catch (error) {
+          console.error('DM inbox subscribe failed', { destination, error })
+          return null
+        }
+      })
+      .filter(Boolean)
+
+    return () => {
+      if (dmRoomRefreshTimerRef.current) {
+        clearTimeout(dmRoomRefreshTimerRef.current)
+        dmRoomRefreshTimerRef.current = null
+      }
+      dmInboxEventDedupRef.current.clear()
+      dmRoomNoticeDedupRef.current.clear()
+      subscriptions.forEach((subscription) => subscription?.unsubscribe())
+    }
+  }, [clientRef, ensureDmRoomTopicSubscription, isConnected, loadDmRooms])
 
   const createOrOpenDmRoom = useCallback(
     async (participantIdList) => {
@@ -316,8 +603,8 @@ export default function useChatLayoutState() {
         return
       }
 
-      const content = draftMessage.trim()
-      const clientMessageId = crypto.randomUUID()
+      const content = draftMessage
+      const tempMessageId = `temp:${crypto.randomUUID()}`
       const roomKey = `dm:${selectedRoom.id}`
 
       setDraftMessage('')
@@ -325,9 +612,8 @@ export default function useChatLayoutState() {
       const client = clientRef.current
       if (!client?.connected) {
         const optimisticMessage = {
-          id: `temp:${clientMessageId}`,
+          id: tempMessageId,
           dmMessageId: null,
-          clientMessageId,
           rawCreatedAt: new Date().toISOString(),
           authorId: user.userId,
           author: {
@@ -347,14 +633,6 @@ export default function useChatLayoutState() {
             [roomKey]: upsertMessage(prev.messagesByRoom[roomKey] ?? [], optimisticMessage)
           }
         }))
-
-        await createDmMessageByHttp({
-          workspaceId: WORKSPACE_ID,
-          dmRoomId: selectedRoom.id,
-          threadRootMessageId: 0,
-          content,
-          accessToken
-        }).catch(() => {})
         return
       }
 
@@ -363,8 +641,7 @@ export default function useChatLayoutState() {
         body: JSON.stringify({
           dmRoomId: selectedRoom.id,
           threadRootMessageId: 0,
-          content,
-          clientMessageId
+          content
         })
       })
     },

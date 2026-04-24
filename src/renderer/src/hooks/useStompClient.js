@@ -22,9 +22,14 @@ export default function useStompClient() {
         connectHeaders: {
           Authorization: `Bearer ${token}`
         },
+        reconnectDelay: 3000,
         heartbeatIncoming: 10000,
         heartbeatOutgoing: 10000,
-        onConnect: () => {
+        onConnect: (frame) => {
+          console.log('[STOMP connected]', {
+            wsUrl: WS_URL,
+            sessionId: frame?.headers?.session
+          })
           setIsConnected(true)
 
           client.subscribe('/user/queue/force-logout', () => {
@@ -37,13 +42,34 @@ export default function useStompClient() {
           })
         },
         onDisconnect: () => {
+          console.warn('[STOMP disconnected]')
           setIsConnected(false)
         },
-        onWebSocketClose: () => {
+        onWebSocketClose: (event) => {
+          console.warn('[STOMP websocket closed]', {
+            code: event?.code,
+            reason: event?.reason
+          })
           setIsConnected(false)
         },
         onStompError: (frame) => {
           console.error('STOMP error', frame)
+        },
+        onUnhandledMessage: (message) => {
+          console.warn('[STOMP unhandled message]', {
+            headers: message.headers,
+            body: message.body
+          })
+        },
+        onUnhandledReceipt: (frame) => {
+          console.warn('[STOMP unhandled receipt]', frame?.headers ?? {})
+        },
+        onUnhandledFrame: (frame) => {
+          console.warn('[STOMP unhandled frame]', {
+            command: frame?.command,
+            headers: frame?.headers,
+            body: frame?.body
+          })
         }
       })
 
@@ -63,14 +89,14 @@ export default function useStompClient() {
   }, [])
 
   useEffect(() => {
-    if (accessToken) {
+    if (!accessToken) {
       disconnect()
-      connect(accessToken)
-      return () => disconnect()
+      return
     }
 
-    disconnect()
-    return undefined
+    if (!clientRef.current?.active) {
+      connect(accessToken)
+    }
   }, [accessToken, connect, disconnect])
 
   return { clientRef, isConnected }
