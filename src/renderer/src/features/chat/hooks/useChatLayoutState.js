@@ -124,6 +124,7 @@ export default function useChatLayoutState() {
   const dmRoomNoticeDedupRef = useRef(new Set())
   const dmInboxEventDedupRef = useRef(new Set())
   const dmRoomTopicSubscriptionsRef = useRef(new Map())
+  const activeDmRoomIdsKeyRef = useRef('')
   const selectedRoomRef = useRef(selectedRoom)
 
   const currentRoomKey = buildRoomKey(selectedRoom)
@@ -174,6 +175,7 @@ export default function useChatLayoutState() {
 
     setLayoutData((prev) => {
       const prevDmById = new Map((prev.directMessages ?? []).map((dm) => [Number(dm.id), dm]))
+      const serverDmIdSet = new Set(mappedDirectMessages.map((dm) => Number(dm.id)))
       const selectedDmId =
         selectedRoomRef.current?.type === 'dm' ? Number(selectedRoomRef.current.id) : 0
 
@@ -189,6 +191,21 @@ export default function useChatLayoutState() {
           unreadCount
         }
       })
+      const preservedDirectMessages = (prev.directMessages ?? [])
+        .filter((dm) => {
+          const dmId = Number(dm?.id)
+          if (!Number.isInteger(dmId) || dmId <= 0) {
+            return false
+          }
+          if (serverDmIdSet.has(dmId)) {
+            return false
+          }
+          return Number(dm?.unreadCount ?? 0) > 0
+        })
+        .map((dm) => ({
+          ...dm,
+          unreadCount: Math.max(0, Number(dm.unreadCount ?? 0))
+        }))
 
       return {
         ...prev,
@@ -201,7 +218,7 @@ export default function useChatLayoutState() {
               status: 'ONLINE'
             }
           : prev.myProfile,
-        directMessages,
+        directMessages: [...preservedDirectMessages, ...directMessages],
         roomMetaByRoomKey: {
           ...prev.roomMetaByRoomKey,
           ...roomMetaByRoomKey
@@ -312,8 +329,6 @@ export default function useChatLayoutState() {
     (roomId) => {
       const normalizedRoomId = Number(roomId)
 
-      console.log('[DM room topic subscribed request successs]', { roomId: normalizedRoomId })
-
       if (dmRoomTopicSubscriptionsRef.current.has(normalizedRoomId)) {
         return
       }
@@ -322,6 +337,8 @@ export default function useChatLayoutState() {
       if (!client?.connected) {
         return
       }
+
+      console.log('[DM room topic subscribed request successs]', { roomId: normalizedRoomId })
 
       try {
         const subscription = client.subscribe(
@@ -342,16 +359,25 @@ export default function useChatLayoutState() {
     if (!isConnected) {
       dmRoomTopicSubscriptionsRef.current.forEach((subscription) => subscription?.unsubscribe())
       dmRoomTopicSubscriptionsRef.current.clear()
+      activeDmRoomIdsKeyRef.current = ''
       return
     }
 
+    const selectedDmRoomId =
+      selectedRoom?.type === 'dm' ? Number(selectedRoom?.id) : Number.NaN
     const activeRoomIds = new Set(
-      (layoutData.directMessages ?? [])
-        .map((dm) => Number(dm?.id))
-        .filter((id) => Number.isInteger(id) && id > 0)
+      Number.isInteger(selectedDmRoomId) && selectedDmRoomId > 0 ? [selectedDmRoomId] : []
     )
+    const activeRoomIdsKey = Array.from(activeRoomIds).join(',')
+    const hasSameActiveRoomIds = activeDmRoomIdsKeyRef.current === activeRoomIdsKey
+    activeDmRoomIdsKeyRef.current = activeRoomIdsKey
+
+    if (hasSameActiveRoomIds) {
+      return
+    }
 
     activeRoomIds.forEach((roomId) => {
+      console.log("activeRoomIds forEach")
       ensureDmRoomTopicSubscription(roomId)
     })
 
@@ -364,7 +390,7 @@ export default function useChatLayoutState() {
       dmRoomTopicSubscriptionsRef.current.delete(roomId)
       console.log('[DM room topic unsubscribed]', { roomId })
     })
-  }, [ensureDmRoomTopicSubscription, isConnected, layoutData.directMessages])
+  }, [ensureDmRoomTopicSubscription, isConnected, selectedRoom?.id, selectedRoom?.type])
 
   useEffect(() => {
     if (!isConnected) {
@@ -423,6 +449,8 @@ export default function useChatLayoutState() {
           dmMessageId: event?.dmMessageId,
           authorId: event?.authorId
         })
+
+        console.log("handleInboxFrame request")
 
 
         ensureDmRoomTopicSubscription(dmRoomId)
@@ -511,7 +539,7 @@ export default function useChatLayoutState() {
                 const payload = JSON.parse(frame?.body ?? '{}')
                 const dmRoomId = Number(payload?.dmRoomId)
                 if (Number.isInteger(dmRoomId)) {
-                  ensureDmRoomTopicSubscription(dmRoomId)
+                  console.log("subscription request success")
                 }
               } catch (preEnsureError) {
                 console.warn('DM inbox pre-ensure parse failed', {
