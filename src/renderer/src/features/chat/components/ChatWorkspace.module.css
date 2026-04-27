@@ -58,6 +58,36 @@
   color: var(--color-text-primary);
 }
 
+.channelRow {
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+}
+
+.channelInviteButton {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.channelRow:hover .channelInviteButton {
+  opacity: 1;
+}
+
+.channelInviteButton:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+}
+
 .dmComposer {
   display: flex;
   flex-direction: column;

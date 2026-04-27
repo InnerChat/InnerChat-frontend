@@ -10,6 +10,7 @@ import {
   removeDmRoomParticipant,
   updateLastReadDmMessage
 } from '../api/dmApi'
+import { readChannelList, createChannel, deleteChannel, inviteToChannel } from '../api/channelApi'
 
 const WORKSPACE_ID = Number(import.meta.env.VITE_WORKSPACE_ID)
 const STOMP_SEND_DESTINATION = '/app/dm/chat/send'
@@ -222,6 +223,43 @@ export default function useChatLayoutState() {
     })
   }, [accessToken, user?.userId, user?.userName])
 
+  const loadChannels = useCallback(async () => {
+    if (!accessToken) return
+    try {
+      const raw = await readChannelList({ workspaceId: WORKSPACE_ID, accessToken })
+      const channels = raw.map((ch) => ({
+        id: ch.channelId,
+        name: ch.name,
+        description: ch.description,
+        isPrivate: ch.isPrivate,
+        memberCount: ch.memberCount,
+        isMember: ch.isMember ?? false,
+        unreadCount: 0
+      }))
+      console.log(':::::')
+      console.log(channels)
+      // roomMetaByRoomKey에 채널 메타를 함께 주입해야 채널 선택 시
+      // 채팅 헤더의 roomMeta.title이 채널명을 즉시 표시할 수 있다.
+      const channelRoomMeta = {}
+      channels.forEach((ch) => {
+        channelRoomMeta[`channel:${ch.id}`] = {
+          title: ch.name,
+          description: ch.description || '채널'
+        }
+      })
+      setLayoutData((prev) => ({
+        ...prev,
+        channels,
+        roomMetaByRoomKey: {
+          ...prev.roomMetaByRoomKey,
+          ...channelRoomMeta
+        }
+      }))
+    } catch (error) {
+      console.error('채널 목록 로드 실패', error)
+    }
+  }, [accessToken])
+
   const loadRoomMessages = useCallback(async () => {
     if (!selectedRoom?.id) {
       return
@@ -258,7 +296,10 @@ export default function useChatLayoutState() {
     loadDmRooms().catch((error) => {
       console.error('DM room list load failed', error)
     })
-  }, [loadDmRooms])
+    loadChannels().catch((error) => {
+      console.error('Channel list load failed', error)
+    })
+  }, [loadDmRooms, loadChannels])
 
   useEffect(() => {
     if (selectedRoom?.type !== 'dm') {
@@ -424,16 +465,13 @@ export default function useChatLayoutState() {
           authorId: event?.authorId
         })
 
-
         ensureDmRoomTopicSubscription(dmRoomId)
-        
 
         if (isDmMessageCreatedEvent && !hasRoomSubscription) {
           loadDmRooms().catch((error) => {
             console.error('DM room list refresh on missed subscription failed', error)
           })
         }
-        
 
         if (unreadTriggerEvent) {
           if (!dmInboxEventDedupRef.current.has(messageDedupKey)) {
@@ -568,6 +606,46 @@ export default function useChatLayoutState() {
     [accessToken, loadDmRooms, user?.userId]
   )
 
+  const createChannelRoom = useCallback(
+    async ({ channelName, description = '' }) => {
+      if (!channelName?.trim()) return null
+      const response = await createChannel({
+        workspaceId: WORKSPACE_ID,
+        channelName: channelName.trim(),
+        description,
+        accessToken
+      })
+      // loadChannels()로 roomMetaByRoomKey를 먼저 채운 뒤 selectedRoom을 설정해야
+      // 헤더가 채널명을 즉시 렌더링한다. 순서가 바뀌면 title이 빈 문자열로 깜빡인다.
+      await loadChannels()
+      if (response?.channelId) {
+        setSelectedRoom({ type: 'channel', id: response.channelId })
+      }
+      return response
+    },
+    [accessToken, loadChannels]
+  )
+
+  const deleteChannelRoom = useCallback(
+    async (channelId) => {
+      await deleteChannel({ channelId, accessToken })
+      // 삭제된 채널이 선택된 상태로 loadChannels()가 실행되면
+      // 존재하지 않는 roomKey를 참조하게 되므로 먼저 해제한다.
+      setSelectedRoom(null)
+      await loadChannels()
+    },
+    [accessToken, loadChannels]
+  )
+
+  const inviteToChannelRoom = useCallback(
+    async (channelId, targetUserId) => {
+      await inviteToChannel({ channelId, targetUserId, accessToken })
+      //초대 후 목록을 새로고침해 memberCont등을 갱신한다.
+      await loadChannels()
+    },
+    [accessToken, loadChannels]
+  )
+
   const actions = {
     selectChannel: (channelId) => setSelectedRoom({ type: 'channel', id: channelId }),
     selectDirectMessage: (dmId) => setSelectedRoom({ type: 'dm', id: dmId }),
@@ -646,6 +724,9 @@ export default function useChatLayoutState() {
       })
     },
     addChannel: () => undefined,
+    createChannel: createChannelRoom,
+    deleteChannel: deleteChannelRoom,
+    inviteToChannel: inviteToChannelRoom,
     addReaction: () => undefined,
     openThread: () => undefined,
     runHeaderAction: () => undefined,
