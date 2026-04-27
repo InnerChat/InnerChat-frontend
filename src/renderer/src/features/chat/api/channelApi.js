@@ -15,10 +15,10 @@ export async function readChannelList({ workspaceId, accessToken }) {
   return Array.isArray(data) ? data : []
 }
 
-export async function createChannel({ workspaceId, channelName, description, accessToken }) {
+export async function createChannel({ workspaceId, channelName, description, type, accessToken }) {
   const { data } = await axios.post(
     `${BASE_URL}/channel`,
-    { workspaceId, channelName, description },
+    { workspaceId, channelName, description, type },
     { headers: buildAuthHeaders(accessToken) }
   )
   return data
@@ -36,6 +36,21 @@ export async function joinChannel({ channelId, accessToken }) {
     {},
     { hearders: buildAuthHeaders(accessToken) }
   )
+}
+
+export async function readChannelMessages({ channelId, cursor = null, accessToken }) {
+  const { data } = await axios.get(`${BASE_URL}/channel/${channelId}/messages`, {
+    params: cursor ? { cursor } : {},
+    headers: buildAuthHeaders(accessToken)
+  })
+  return Array.isArray(data) ? data : []
+}
+
+export async function readChannelMembers({ channelId, accessToken }) {
+  const { data } = await axios.get(`${BASE_URL}/channel/${channelId}/members`, {
+    headers: buildAuthHeaders(accessToken)
+  })
+  return Array.isArray(data) ? data : []
 }
 
 export async function inviteToChannel({ channelId, targetUserId, accessToken }) {

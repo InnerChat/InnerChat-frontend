@@ -10,10 +10,11 @@ import {
   removeDmRoomParticipant,
   updateLastReadDmMessage
 } from '../api/dmApi'
-import { readChannelList, createChannel, deleteChannel, inviteToChannel } from '../api/channelApi'
+import { readChannelList, readChannelMembers, readChannelMessages, createChannel, deleteChannel, inviteToChannel } from '../api/channelApi'
 
 const WORKSPACE_ID = Number(import.meta.env.VITE_WORKSPACE_ID)
 const STOMP_SEND_DESTINATION = '/app/dm/chat/send'
+const STOMP_CHANNEL_SEND_DESTINATION = '/app/channel/send'
 
 const INITIAL_LAYOUT_DATA = {
   workspaceInfo: { name: 'InnerChat', subtitle: 'Direct Message' },
@@ -231,13 +232,11 @@ export default function useChatLayoutState() {
         id: ch.channelId,
         name: ch.name,
         description: ch.description,
-        isPrivate: ch.isPrivate,
+        type: ch.type,
         memberCount: ch.memberCount,
-        isMember: ch.isMember ?? false,
+        isMember: ch.member ?? false,
         unreadCount: 0
       }))
-      console.log(':::::')
-      console.log(channels)
       // roomMetaByRoomKey에 채널 메타를 함께 주입해야 채널 선택 시
       // 채팅 헤더의 roomMeta.title이 채널명을 즉시 표시할 수 있다.
       const channelRoomMeta = {}
@@ -257,6 +256,57 @@ export default function useChatLayoutState() {
       }))
     } catch (error) {
       console.error('채널 목록 로드 실패', error)
+    }
+  }, [accessToken])
+
+  const loadChannelMembers = useCallback(async (channelId) => {
+    if (!accessToken || !channelId) return
+    try {
+      const raw = await readChannelMembers({ channelId, accessToken })
+      const members = raw.map((m) => ({
+        id: m.userId,
+        name: m.userName ?? `User ${m.userId}`,
+        initials: m.userName
+          ? m.userName.trim().slice(0, 2).toUpperCase()
+          : String(m.userId).slice(0, 2),
+        colorKey: pickColorKey(m.userId),
+        isOnline: false,
+        role: ''
+      }))
+      setLayoutData((prev) => ({
+        ...prev,
+        rightPanelData: { ...prev.rightPanelData, members }
+      }))
+    } catch (error) {
+      console.error('채널 멤버 로드 실패', error)
+    }
+  }, [accessToken])
+
+  const loadChannelMessages = useCallback(async (channelId) => {
+    if (!accessToken || !channelId) return
+    try {
+      const raw = await readChannelMessages({ channelId, accessToken })
+      const messages = raw.reverse().map((m) => ({
+        id: m.channelMessageId,
+        channelMessageId: m.channelMessageId,
+        rawCreatedAt: m.createdAt,
+        authorId: m.authorId,
+        author: {
+          name: m.authorName ?? 'Unknown',
+          initials: toInitials(m.authorName ?? ''),
+          colorKey: pickColorKey(m.authorId)
+        },
+        time: formatMessageTime(m.createdAt),
+        text: m.content ?? '',
+        reactions: []
+      }))
+      const roomKey = `channel:${channelId}`
+      setLayoutData((prev) => ({
+        ...prev,
+        messagesByRoom: { ...prev.messagesByRoom, [roomKey]: messages }
+      }))
+    } catch (error) {
+      console.error('채널 메시지 로드 실패', error)
     }
   }, [accessToken])
 
@@ -310,6 +360,28 @@ export default function useChatLayoutState() {
       console.error('DM messages load failed', error)
     })
   }, [loadRoomMessages, selectedRoom?.id, selectedRoom?.type])
+
+  useEffect(() => {
+    if (selectedRoom?.type !== 'channel' || !selectedRoom?.id) {
+      if (selectedRoom?.type !== 'channel') {
+        setLayoutData((prev) => ({
+          ...prev,
+          rightPanelData: { ...prev.rightPanelData, members: [] }
+        }))
+      }
+      return
+    }
+    loadChannelMembers(selectedRoom.id).catch((error) => {
+      console.error('Channel members load failed', error)
+    })
+  }, [loadChannelMembers, selectedRoom?.id, selectedRoom?.type])
+
+  useEffect(() => {
+    if (selectedRoom?.type !== 'channel' || !selectedRoom?.id) return
+    loadChannelMessages(selectedRoom.id).catch((error) => {
+      console.error('Channel messages load failed', error)
+    })
+  }, [loadChannelMessages, selectedRoom?.id, selectedRoom?.type])
 
   const handleDmRoomFrame = useCallback((roomId, frame) => {
     try {
@@ -406,6 +478,78 @@ export default function useChatLayoutState() {
       console.log('[DM room topic unsubscribed]', { roomId })
     })
   }, [ensureDmRoomTopicSubscription, isConnected, layoutData.directMessages])
+
+  const channelTopicSubscriptionsRef = useRef(new Map())
+
+  const ensureChannelTopicSubscription = useCallback((channelId) => {
+    const id = Number(channelId)
+    if (channelTopicSubscriptionsRef.current.has(id)) return
+
+    const client = clientRef.current
+    if (!client?.connected) return
+
+    try {
+      const subscription = client.subscribe(
+        `/topic/channel/${id}`,
+        (frame) => {
+          try {
+            const payload = JSON.parse(frame.body)
+            const incoming = {
+              id: payload.channelMessageId,
+              channelMessageId: payload.channelMessageId,
+              rawCreatedAt: payload.createdAt,
+              authorId: payload.authorId,
+              author: {
+                name: payload.authorName ?? 'Unknown',
+                initials: toInitials(payload.authorName ?? ''),
+                colorKey: pickColorKey(payload.authorId)
+              },
+              time: formatMessageTime(payload.createdAt),
+              text: payload.content ?? '',
+              reactions: []
+            }
+            const roomKey = `channel:${id}`
+            setLayoutData((prev) => ({
+              ...prev,
+              messagesByRoom: {
+                ...prev.messagesByRoom,
+                [roomKey]: [...(prev.messagesByRoom[roomKey] ?? []), incoming]
+              }
+            }))
+          } catch (error) {
+            console.error('채널 STOMP 메시지 파싱 실패', { channelId: id, error })
+          }
+        },
+        { id: `channel-${id}` }
+      )
+      channelTopicSubscriptionsRef.current.set(id, subscription)
+      console.log('[Channel topic subscribed]', { channelId: id })
+    } catch (error) {
+      console.error('채널 토픽 구독 실패', { channelId: id, error })
+    }
+  }, [clientRef])
+
+  useEffect(() => {
+    if (!isConnected) {
+      channelTopicSubscriptionsRef.current.forEach((sub) => sub?.unsubscribe())
+      channelTopicSubscriptionsRef.current.clear()
+      return
+    }
+
+    const myChannelIds = (layoutData.channels ?? [])
+      .filter((ch) => ch.isMember)
+      .map((ch) => Number(ch.id))
+
+    myChannelIds.forEach((id) => ensureChannelTopicSubscription(id))
+
+    channelTopicSubscriptionsRef.current.forEach((sub, id) => {
+      if (!myChannelIds.includes(id)) {
+        sub?.unsubscribe()
+        channelTopicSubscriptionsRef.current.delete(id)
+        console.log('[Channel topic unsubscribed]', { channelId: id })
+      }
+    })
+  }, [isConnected, layoutData.channels, ensureChannelTopicSubscription])
 
   useEffect(() => {
     if (!isConnected) {
@@ -672,22 +816,36 @@ export default function useChatLayoutState() {
     },
     setDraftMessage,
     submitMessage: async () => {
-      if (
-        !draftMessage.trim() ||
-        selectedRoom?.type !== 'dm' ||
-        !selectedRoom.id ||
-        !user?.userId
-      ) {
+      if (!draftMessage.trim() || !selectedRoom?.id || !user?.userId) {
         return
       }
 
       const content = draftMessage
+      const client = clientRef.current
+
+      // 채널 메시지 전송
+      if (selectedRoom.type === 'channel') {
+        setDraftMessage('')
+        if (!client?.connected) return
+        client.publish({
+          destination: STOMP_CHANNEL_SEND_DESTINATION,
+          body: JSON.stringify({
+            channelId: selectedRoom.id,
+            threadRootMessageId: null,
+            content
+          })
+        })
+        return
+      }
+
+      // DM 메시지 전송
+      if (selectedRoom.type !== 'dm') return
+
       const tempMessageId = `temp:${crypto.randomUUID()}`
       const roomKey = `dm:${selectedRoom.id}`
 
       setDraftMessage('')
 
-      const client = clientRef.current
       if (!client?.connected) {
         const optimisticMessage = {
           id: tempMessageId,
