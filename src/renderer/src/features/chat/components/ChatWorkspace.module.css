@@ -629,6 +629,36 @@
   color: var(--color-text-primary);
 }
 
+.memberList {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  background: var(--color-surface-raised, #2a2d31);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.memberList li > button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.memberList li > button:hover:not(:disabled) {
+  background: var(--color-surface-hover, #3a3d41);
+}
+
+.memberList li > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .memberItem {
   display: flex;
   align-items: center;

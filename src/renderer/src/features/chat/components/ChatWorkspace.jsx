@@ -38,7 +38,7 @@ export default function ChatWorkspace({ state }) {
   const [newChannelName, setNewChannelName] = useState('')
   const [isSubmittingCreateChannel, setIsSubmittingCreateChannel] = useState(false)
   const [invitingChannelId, setInvitingChannelId] = useState(null)
-  const [inviteTargetInput, setInviteTargetInput] = useState('')
+  const [inviteChannelQuery, setInviteChannelQuery] = useState('')
   const [isSubmittingChannelInvite, setIsSubmittingChannelInvite] = useState(false)
 
   const {
@@ -159,14 +159,11 @@ export default function ChatWorkspace({ state }) {
     }
   }
 
-  async function handleInviteToChannel(event, channelId) {
-    event.preventDefault()
-    const targetUserId = Number(inviteTargetInput.trim())
-    if (!targetUserId) return
+  async function handleInviteToChannel(channelId, member) {
     try {
       setIsSubmittingChannelInvite(true)
-      await actions.inviteToChannel(channelId, targetUserId)
-      setInviteTargetInput('')
+      await actions.inviteToChannel(channelId, member.id)
+      setInviteChannelQuery('')
       setInvitingChannelId(null)
     } finally {
       setIsSubmittingChannelInvite(false)
@@ -240,6 +237,13 @@ export default function ChatWorkspace({ state }) {
     }
   }, [actions, isCreateDmComposerOpen, memberQuery, selectedDmMembers])
 
+  useEffect(() => {
+    if (!invitingChannelId || workspaceMembers.length > 0) return
+    actions.loadWorkspaceMembersForDm().then((payload) => {
+      setWorkspaceMembers(normalizeWorkspaceMembers(payload))
+    })
+  }, [invitingChannelId, actions, workspaceMembers.length])
+
   const selectedDmMemberIdSet = new Set(selectedDmMembers.map((member) => member.id))
   const filteredWorkspaceMembers = workspaceMembers
     .filter((member) => {
@@ -300,27 +304,36 @@ export default function ChatWorkspace({ state }) {
                 )}
               </div>
               {invitingChannelId === channel.id && (
-                <form
-                  className={styles.dmComposer}
-                  onSubmit={(e) => handleInviteToChannel(e, channel.id)}
-                >
+                <div className={styles.dmComposer}>
                   <input
                     className={styles.dmComposerInput}
-                    placeholder="초대할 사용자 ID"
-                    value={inviteTargetInput}
-                    onChange={(e) => setInviteTargetInput(e.target.value)}
-                    type="number"
-                    min="1"
+                    placeholder="이름으로 멤버 검색"
+                    value={inviteChannelQuery}
+                    onChange={(e) => setInviteChannelQuery(e.target.value)}
                     autoFocus
                   />
-                  <button
-                    type="submit"
-                    className={styles.inlineButton}
-                    disabled={isSubmittingChannelInvite || !inviteTargetInput.trim()}
-                  >
-                    {isSubmittingChannelInvite ? '초대 중...' : '초대'}
-                  </button>
-                </form>
+                  {inviteChannelQuery.trim() && (
+                    <ul className={styles.memberList}>
+                      {workspaceMembers
+                        .filter((m) =>
+                          m.name.toLowerCase().includes(inviteChannelQuery.trim().toLowerCase())
+                        )
+                        .slice(0, 6)
+                        .map((m) => (
+                          <li key={m.id}>
+                            <button
+                              type="button"
+                              className={styles.memberItem}
+                              disabled={isSubmittingChannelInvite}
+                              onClick={() => handleInviteToChannel(channel.id, m)}
+                            >
+                              {m.name}
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </div>
           ))}
