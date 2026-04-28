@@ -7,11 +7,7 @@ import MessageGroup from './MessageGroup'
 import NavItemButton from './common/NavItemButton'
 import styles from './ChatWorkspace.module.css'
 
-const HEADER_ACTIONS = [
-  { key: 'search', label: '검색', icon: 'search' },
-  { key: 'notification', label: '알림', icon: 'notification' },
-  { key: 'members', label: '멤버', icon: 'members' }
-]
+const HEADER_ACTIONS = [{ key: 'search', label: '검색', icon: 'search' }]
 
 const INPUT_TOOL_ACTIONS = [
   { key: 'bold', label: '굵게', icon: 'bold' },
@@ -29,17 +25,20 @@ export default function ChatWorkspace({ state }) {
   const [memberQuery, setMemberQuery] = useState('')
   const [selectedDmMembers, setSelectedDmMembers] = useState([])
   const [isLoadingWorkspaceMembers, setIsLoadingWorkspaceMembers] = useState(false)
-  const [isCheckingExistingDm, setIsCheckingExistingDm] = useState(false)
-  const [inviteUserIds, setInviteUserIds] = useState('')
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [inviteMemberQuery, setInviteMemberQuery] = useState('')
+  const [selectedInviteMembers, setSelectedInviteMembers] = useState([])
   const [isSubmittingCreateDm, setIsSubmittingCreateDm] = useState(false)
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false)
   const [isSubmittingLeave, setIsSubmittingLeave] = useState(false)
+  const [dmContextMenu, setDmContextMenu] = useState(null)
 
   const {
     workspaceInfo,
     myProfile,
     channels,
     directMessages,
+    selectedDmRoomType,
     rightPanelData,
     selectedRoom,
     roomMeta,
@@ -51,6 +50,7 @@ export default function ChatWorkspace({ state }) {
 
   const roomPrefix = selectedRoom?.type === 'channel' ? '#' : selectedRoom?.type === 'dm' ? '@' : ''
   const isDmSelected = selectedRoom?.type === 'dm' && !!selectedRoom?.id
+  const isGroupDm = selectedDmRoomType === 'GROUP'
 
   useEffect(() => {
     const el = messagesRef.current
@@ -61,12 +61,28 @@ export default function ChatWorkspace({ state }) {
     el.scrollTop = el.scrollHeight
   }, [currentMessages, selectedRoom?.id, selectedRoom?.type])
 
-  function parseUserIds(value) {
-    return value
-      .split(',')
-      .map((v) => Number(v.trim()))
-      .filter((v) => Number.isInteger(v) && v > 0)
-  }
+  useEffect(() => {
+    if (!dmContextMenu) {
+      return undefined
+    }
+
+    function handleWindowClick() {
+      setDmContextMenu(null)
+    }
+
+    function handleEscape(event) {
+      if (event.key === 'Escape') {
+        setDmContextMenu(null)
+      }
+    }
+
+    window.addEventListener('click', handleWindowClick)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('click', handleWindowClick)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [dmContextMenu])
 
   function normalizeWorkspaceMembers(payload) {
     const source = Array.isArray(payload) ? payload : Array.isArray(payload?.members) ? payload.members : []
@@ -85,10 +101,8 @@ export default function ChatWorkspace({ state }) {
       .filter((member) => member.id > 0 && member.name)
   }
 
-  async function handleToggleCreateDmComposer() {
-    setIsCreateDmComposerOpen((prev) => !prev)
-
-    if (isCreateDmComposerOpen) {
+  async function ensureWorkspaceMembersLoaded() {
+    if (workspaceMembers.length > 0) {
       return
     }
 
@@ -99,6 +113,17 @@ export default function ChatWorkspace({ state }) {
     } finally {
       setIsLoadingWorkspaceMembers(false)
     }
+  }
+
+  async function handleToggleCreateDmComposer() {
+    const willOpen = !isCreateDmComposerOpen
+    setIsCreateDmComposerOpen(willOpen)
+
+    if (!willOpen) {
+      return
+    }
+
+    await ensureWorkspaceMembersLoaded()
   }
 
   function handleSelectDmMember(member) {
@@ -133,13 +158,44 @@ export default function ChatWorkspace({ state }) {
     }
   }
 
+  async function handleOpenInviteModal() {
+    if (!isGroupDm) {
+      return
+    }
+
+    await ensureWorkspaceMembersLoaded()
+    setSelectedInviteMembers([])
+    setInviteMemberQuery('')
+    setIsInviteModalOpen(true)
+  }
+
+  function handleCloseInviteModal() {
+    setIsInviteModalOpen(false)
+    setSelectedInviteMembers([])
+    setInviteMemberQuery('')
+  }
+
+  function handleSelectInviteMember(member) {
+    setSelectedInviteMembers((prev) => {
+      if (prev.some((item) => item.id === member.id)) {
+        return prev
+      }
+      return [...prev, member]
+    })
+    setInviteMemberQuery('')
+  }
+
+  function handleRemoveInviteMember(memberId) {
+    setSelectedInviteMembers((prev) => prev.filter((item) => item.id !== memberId))
+  }
+
   async function handleInviteParticipants(event) {
     event.preventDefault()
     if (!isDmSelected) {
       return
     }
 
-    const userIdList = parseUserIds(inviteUserIds)
+    const userIdList = selectedInviteMembers.map((member) => member.id)
     if (userIdList.length === 0) {
       return
     }
@@ -147,54 +203,43 @@ export default function ChatWorkspace({ state }) {
     try {
       setIsSubmittingInvite(true)
       await actions.addDmParticipants(selectedRoom.id, userIdList)
-      setInviteUserIds('')
+      handleCloseInviteModal()
     } finally {
       setIsSubmittingInvite(false)
     }
   }
 
-  async function handleLeaveRoom() {
-    if (!isDmSelected) {
+  async function handleLeaveRoom(dmRoomId = selectedRoom?.id) {
+    if (!dmRoomId) {
       return
     }
 
     try {
       setIsSubmittingLeave(true)
-      await actions.leaveDmRoom(selectedRoom.id)
+      await actions.leaveDmRoom(dmRoomId)
     } finally {
       setIsSubmittingLeave(false)
     }
   }
 
-  useEffect(() => {
-    if (!isCreateDmComposerOpen) {
-      return undefined
+  function handleOpenDmContextMenu(event, dmRoomId) {
+    event.preventDefault()
+    setDmContextMenu({
+      roomId: dmRoomId,
+      x: event.clientX,
+      y: event.clientY
+    })
+  }
+
+  async function handleLeaveRoomFromContextMenu() {
+    if (!dmContextMenu?.roomId || isSubmittingLeave) {
+      return
     }
 
-    const keyword = memberQuery.trim()
-    if (!keyword) {
-      return undefined
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        setIsCheckingExistingDm(true)
-        const existingDm = await actions.lookupExistingDmRoomWithUser(
-          selectedDmMembers.map((member) => member.id)
-        )
-        if (existingDm?.dmRoomId) {
-          actions.selectDirectMessage(existingDm.dmRoomId)
-          setIsCreateDmComposerOpen(false)
-        }
-      } finally {
-        setIsCheckingExistingDm(false)
-      }
-    }, 250)
-
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [actions, isCreateDmComposerOpen, memberQuery, selectedDmMembers])
+    const roomId = dmContextMenu.roomId
+    setDmContextMenu(null)
+    await handleLeaveRoom(roomId)
+  }
 
   const selectedDmMemberIdSet = new Set(selectedDmMembers.map((member) => member.id))
   const filteredWorkspaceMembers = workspaceMembers
@@ -203,12 +248,28 @@ export default function ChatWorkspace({ state }) {
         return false
       }
 
-      const keyword = memberQuery.trim()
+      const keyword = memberQuery.trim().toLowerCase()
       if (!keyword) {
         return true
       }
 
-      return member.name.toLowerCase().includes(keyword.toLowerCase()) || String(member.id).includes(keyword)
+      return member.name.toLowerCase().includes(keyword)
+    })
+    .slice(0, 8)
+
+  const selectedInviteMemberIdSet = new Set(selectedInviteMembers.map((member) => member.id))
+  const filteredInviteMembers = workspaceMembers
+    .filter((member) => {
+      if (selectedInviteMemberIdSet.has(member.id)) {
+        return false
+      }
+
+      const keyword = inviteMemberQuery.trim().toLowerCase()
+      if (!keyword) {
+        return true
+      }
+
+      return member.name.toLowerCase().includes(keyword)
     })
     .slice(0, 8)
 
@@ -255,7 +316,8 @@ export default function ChatWorkspace({ state }) {
               unreadCount={dm.unreadCount}
               showOnline={dm.isOnline}
               isActive={selectedRoom?.type === 'dm' && selectedRoom?.id === dm.id}
-              onClick={() => actions.selectDirectMessage(dm.id)}
+              onClick={() => actions.selectDirectMessage(dm)}
+              onContextMenu={(event) => handleOpenDmContextMenu(event, dm.id)}
             />
           ))}
 
@@ -295,7 +357,6 @@ export default function ChatWorkspace({ state }) {
                       onClick={() => handleSelectDmMember(member)}
                     >
                       <span>{member.name}</span>
-                      <span className={styles.dmSuggestionMeta}>#{member.id}</span>
                     </button>
                   ))}
                 </div>
@@ -304,10 +365,6 @@ export default function ChatWorkspace({ state }) {
               {isLoadingWorkspaceMembers ? (
                 <p className={styles.dmHelperText}>멤버 목록 불러오는 중...</p>
               ) : null}
-              {isCheckingExistingDm ? (
-                <p className={styles.dmHelperText}>기존 DM 확인 중...</p>
-              ) : null}
-
               <button
                 className={styles.inlineButton}
                 type="submit"
@@ -350,12 +407,17 @@ export default function ChatWorkspace({ state }) {
             ))}
             <ActionButton
               variant="icon"
-              title={isRightPanelOpen ? '오른쪽 패널 닫기' : '오른쪽 패널 열기'}
-              isActive={isRightPanelOpen} 
+              title={isRightPanelOpen ? '핀 리스트 닫기' : '핀 리스트 열기'}
+              isActive={isRightPanelOpen}
               onClick={actions.toggleRightPanel}
             >
-              ▤
+              <span aria-hidden="true" className={`${styles.iconGlyph} ${styles.iconpin}`} />
             </ActionButton>
+            {isGroupDm ? (
+              <ActionButton variant="icon" title="참여자 추가" onClick={handleOpenInviteModal}>
+                <span aria-hidden="true" className={`${styles.iconGlyph} ${styles.iconadd}`} />
+              </ActionButton>
+            ) : null}
           </div>
         </header>
 
@@ -365,8 +427,11 @@ export default function ChatWorkspace({ state }) {
             <MessageGroup
               key={message.id}
               message={message}
+              currentUserId={myProfile.id}
               onAddReaction={actions.addReaction}
               onOpenThread={actions.openThread}
+              onEditMessage={actions.editDmMessage}
+              onDeleteMessage={actions.deleteDmMessage}
             />
           ))}
         </section>
@@ -415,7 +480,7 @@ export default function ChatWorkspace({ state }) {
       {isRightPanelOpen ? (
         <aside className={styles.rightPanel}>
           <header className={styles.panelHeader}>
-            <span>핀 & 멤버</span>
+            <span>핀 리스트</span>
             <button
               type="button"
               className={styles.panelCloseButton}
@@ -427,54 +492,112 @@ export default function ChatWorkspace({ state }) {
 
           <div className={styles.panelContent}>
             <h3 className={styles.panelSectionTitle}>핀 고정 메시지</h3>
-            {rightPanelData.pinnedMessages.map((item) => (
-              <article key={item.id} className={styles.pinnedItem}>
-                <p className={styles.pinnedTitle}>📌 {item.title}</p>
-                <p className={styles.pinnedText}>{item.text}</p>
-              </article>
-            ))}
-
-            <h3 className={styles.panelSectionTitle}>멤버 ({rightPanelData.members.length})</h3>
-            {rightPanelData.members.map((member) => (
-              <div key={member.id} className={styles.memberItem}>
-                <Avatar size="sm" colorKey={member.colorKey} label={member.initials} />
-                <span className={styles.memberName}>{member.name}</span>
-                {member.isOnline ? <span className={styles.memberOnlineDot} /> : null}
-                <span className={styles.memberRole}>{member.role}</span>
-              </div>
-            ))}
-
-            {isDmSelected ? (
-              <>
-                <h3 className={styles.panelSectionTitle}>참여자 관리</h3>
-                <form className={styles.panelForm} onSubmit={handleInviteParticipants}>
-                  <input
-                    className={styles.panelInput}
-                    value={inviteUserIds}
-                    placeholder="추가 userId (쉼표 구분)"
-                    onChange={(event) => setInviteUserIds(event.target.value)}
-                  />
-                  <button
-                    className={styles.panelPrimaryButton}
-                    type="submit"
-                    disabled={isSubmittingInvite}
-                  >
-                    {isSubmittingInvite ? '추가중' : '참여자 추가'}
-                  </button>
-                </form>
-
-                <button
-                  type="button"
-                  className={styles.panelDangerButton}
-                  onClick={handleLeaveRoom}
-                  disabled={isSubmittingLeave}
-                >
-                  {isSubmittingLeave ? '처리중' : '방 나가기'}
-                </button>
-              </>
-            ) : null}
+            {rightPanelData.pinnedMessages.length > 0 ? (
+              rightPanelData.pinnedMessages.map((item) => (
+                <article key={item.id} className={styles.pinnedItem}>
+                  <p className={styles.pinnedTitle}>📌 {item.title}</p>
+                  <p className={styles.pinnedText}>{item.text}</p>
+                </article>
+              ))
+            ) : (
+              <p className={styles.dmHelperText}>핀 고정된 메시지가 없습니다.</p>
+            )}
           </div>
         </aside>
+      ) : null}
+
+      {dmContextMenu ? (
+        <div
+          className={styles.contextMenu}
+          style={{ top: `${dmContextMenu.y}px`, left: `${dmContextMenu.x}px` }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            className={styles.contextMenuDanger}
+            onClick={handleLeaveRoomFromContextMenu}
+            disabled={isSubmittingLeave}
+          >
+            {isSubmittingLeave ? '처리중' : '방 나가기'}
+          </button>
+        </div>
+      ) : null}
+
+      {isInviteModalOpen ? (
+        <div className={styles.modalOverlay} onClick={handleCloseInviteModal}>
+          <div
+            className={styles.modalCard}
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="참여자 추가"
+          >
+            <header className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>참여자 추가</h3>
+              <button type="button" className={styles.panelCloseButton} onClick={handleCloseInviteModal}>
+                ×
+              </button>
+            </header>
+
+            <form className={styles.modalForm} onSubmit={handleInviteParticipants}>
+              {selectedInviteMembers.length > 0 ? (
+                <div className={styles.dmMemberChipList}>
+                  {selectedInviteMembers.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      className={styles.dmMemberChip}
+                      onClick={() => handleRemoveInviteMember(member.id)}
+                      title="선택 해제"
+                    >
+                      <span>{member.name}</span>
+                      <span className={styles.dmChipRemove}>×</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              <input
+                className={styles.dmComposerInput}
+                value={inviteMemberQuery}
+                placeholder="이름으로 멤버 검색"
+                onChange={(event) => setInviteMemberQuery(event.target.value)}
+              />
+
+              {inviteMemberQuery.trim() ? (
+                <div className={styles.dmSuggestionList}>
+                  {filteredInviteMembers.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      className={styles.dmSuggestionItem}
+                      onClick={() => handleSelectInviteMember(member)}
+                    >
+                      <span>{member.name}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {isLoadingWorkspaceMembers ? (
+                <p className={styles.dmHelperText}>멤버 목록 불러오는 중...</p>
+              ) : null}
+
+              <div className={styles.modalActions}>
+                <button type="button" className={styles.modalGhostButton} onClick={handleCloseInviteModal}>
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className={styles.panelPrimaryButton}
+                  disabled={isSubmittingInvite || selectedInviteMembers.length === 0}
+                >
+                  {isSubmittingInvite ? '추가중' : '참여자 추가'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       ) : null}
     </div>
   )
