@@ -15,6 +15,14 @@ export async function readChannelList({ workspaceId, accessToken }) {
   return Array.isArray(data) ? data : []
 }
 
+export async function readChannelListUserId({ accessToken }) {
+  const { data } = await axios.get(`${BASE_URL}/channel/me`, {
+    params: {},
+    headers: buildAuthHeaders(accessToken)
+  })
+  return Array.isArray(data) ? data : [];
+}
+
 export async function createChannel({ workspaceId, channelName, description, type, accessToken }) {
   const { data } = await axios.post(
     `${BASE_URL}/channel`,
@@ -53,10 +61,32 @@ export async function readChannelMembers({ channelId, accessToken }) {
   return Array.isArray(data) ? data : []
 }
 
+export async function leaveChannel({ channelId, accessToken }) {
+  await axios.delete(`${BASE_URL}/channel/${channelId}/leave`, {
+    headers: buildAuthHeaders(accessToken)
+  })
+}
+
 export async function inviteToChannel({ channelId, targetUserId, accessToken }) {
   await axios.post(
     `${BASE_URL}/channel/${channelId}/invite`,
     { targetUserId },
     { headers: buildAuthHeaders(accessToken) },
+  )
+}
+
+export async function editChannelMessage({ channelMessageId, content, accessToken }) {
+  await axios.patch(
+    `${BASE_URL}/channel/message`,
+    { channelMessageId, content, action: 'MODIFIED' },
+    { headers: buildAuthHeaders(accessToken) }
+  )
+}
+
+export async function deleteChannelMessage({ channelMessageId, accessToken }) {
+  await axios.patch(
+    `${BASE_URL}/channel/message`,
+    { channelMessageId, action: 'DELETED' },
+    { headers: buildAuthHeaders(accessToken) }
   )
 }
