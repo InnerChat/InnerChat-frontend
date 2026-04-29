@@ -252,7 +252,7 @@ export default function MessageGroup({
             aria-modal="true"
             aria-label="메시지 삭제 확인"
           >
-            <p className={styles.confirmText}>진짜 삭제하겠냐고</p>
+            <p className={styles.confirmText}>정말 삭제 하시겠습니까?</p>
             <div className={styles.confirmActions}>
               <button
                 type="button"
