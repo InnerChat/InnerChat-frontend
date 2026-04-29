@@ -10,13 +10,15 @@ export default function NavItemButton({
   label,
   unreadCount,
   showOnline = false,
-  onClick
+  onClick,
+  onContextMenu
 }) {
   return (
     <button
       type="button"
       className={clsx(styles.item, isActive && styles.active)}
       onClick={onClick}
+      onContextMenu={onContextMenu}
     >
       {avatar ? (
         <Avatar size="sm" colorKey={avatar.colorKey} label={avatar.label} />

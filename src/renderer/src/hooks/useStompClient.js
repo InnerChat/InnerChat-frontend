@@ -7,6 +7,7 @@ const WS_URL = import.meta.env.VITE_WS_URL
 
 export default function useStompClient() {
   const clientRef = useRef(null)
+  const clientSeqRef = useRef(0)
   const [isConnected, setIsConnected] = useState(false)
   const accessToken = useAuthStore((s) => s.accessToken)
   const logout = useAuthStore((s) => s.logout)
@@ -16,6 +17,8 @@ export default function useStompClient() {
       if (!token || clientRef.current?.active) {
         return
       }
+      const clientSeq = clientSeqRef.current + 1
+      clientSeqRef.current = clientSeq
 
       const client = new Client({
         webSocketFactory: () => new SockJS(WS_URL),
@@ -26,6 +29,10 @@ export default function useStompClient() {
         heartbeatIncoming: 10000,
         heartbeatOutgoing: 10000,
         onConnect: (frame) => {
+          if (clientRef.current !== client || clientSeqRef.current !== clientSeq) {
+            client.deactivate()
+            return
+          }
           console.log('[STOMP connected]', {
             wsUrl: WS_URL,
             sessionId: frame?.headers?.session
@@ -42,10 +49,16 @@ export default function useStompClient() {
           })
         },
         onDisconnect: () => {
+          if (clientRef.current !== client || clientSeqRef.current !== clientSeq) {
+            return
+          }
           console.warn('[STOMP disconnected]')
           setIsConnected(false)
         },
         onWebSocketClose: (event) => {
+          if (clientRef.current !== client || clientSeqRef.current !== clientSeq) {
+            return
+          }
           console.warn('[STOMP websocket closed]', {
             code: event?.code,
             reason: event?.reason
@@ -80,11 +93,14 @@ export default function useStompClient() {
   )
 
   const disconnect = useCallback(() => {
-    if (clientRef.current?.active) {
-      clientRef.current.deactivate()
+    const client = clientRef.current
+    if (client?.active || client?.connected) {
+      client.deactivate()
     }
 
-    clientRef.current = null
+    if (clientRef.current === client) {
+      clientRef.current = null
+    }
     setIsConnected(false)
   }, [])
 
@@ -98,6 +114,12 @@ export default function useStompClient() {
       connect(accessToken)
     }
   }, [accessToken, connect, disconnect])
+
+  useEffect(() => {
+    return () => {
+      disconnect()
+    }
+  }, [disconnect])
 
   return { clientRef, isConnected }
 }

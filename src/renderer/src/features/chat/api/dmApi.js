@@ -94,11 +94,30 @@ export async function readDmMessages({ dmRoomId, cursor, accessToken }) {
     params.cursor = cursor
   }
 
-  const { data } = await axios.get(`${API_PREFIX}/dm/chat/${dmRoomId}/messages`, {
+  const { data } = await axios.get(`${API_PREFIX}/dm/chat/${dmRoomId}`, {
     params,
     headers: buildAuthHeaders(accessToken)
   })
 
+  return data
+}
+
+export async function updateDmMessage({ dmRoomId, dmMessageId, content, accessToken }) {
+  // TODO(backend): 엔드포인트/요청 스키마 확정 후 아래 URL/바디를 백엔드 계약에 맞게 수정
+  const { data } = await axios.put(
+    `${API_PREFIX}/dm/chat`,
+    { dmRoomId, dmMessageId, content },
+    { headers: buildAuthHeaders(accessToken) }
+  )
+  return data
+}
+
+export async function deleteDmMessage({ dmRoomId, dmMessageId, accessToken }) {
+  // TODO(backend): 엔드포인트/요청 스키마 확정 후 아래 URL/바디를 백엔드 계약에 맞게 수정
+  const { data } = await axios.delete(`${API_PREFIX}/dm/chat`, {
+    data: { dmRoomId, dmMessageId },
+    headers: buildAuthHeaders(accessToken)
+  })
   return data
 }
 

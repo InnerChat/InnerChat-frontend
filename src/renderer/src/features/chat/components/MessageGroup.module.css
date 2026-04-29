@@ -1,12 +1,36 @@
-﻿.group {
+.group {
   display: flex;
   gap: 10px;
-  padding: 6px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  transition: background 0.12s;
+}
+
+.group:hover {
+  background: var(--color-bg-secondary);
+}
+
+.mine {
+  flex-direction: row-reverse;
+}
+
+.mine .body {
+  align-items: flex-end;
+}
+
+.mine .meta {
+  justify-content: flex-end;
+}
+
+.mine .text {
+  text-align: right;
 }
 
 .body {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .meta {
@@ -31,6 +55,12 @@
   font-size: 13px;
   line-height: 1.55;
   color: var(--color-text-primary);
+}
+
+.modifiedLabel {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
 }
 
 .text code {
@@ -118,4 +148,138 @@
   font-size: 12px;
   cursor: pointer;
   padding: 4px 0;
+}
+
+.contextMenu {
+  position: fixed;
+  z-index: 30;
+  min-width: 120px;
+  padding: 6px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 8px;
+  background: var(--color-bg-secondary);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.32);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.contextMenuItem {
+  width: 100%;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.contextMenuDanger {
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.16);
+}
+
+.inlineEditBox {
+  margin-top: 8px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 8px;
+  background: var(--color-bg-secondary);
+  padding: 10px;
+}
+
+.inlineEditInput {
+  width: 100%;
+  min-height: 88px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.inlineEditActions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.inlineEditCancel,
+.inlineEditSave {
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.inlineEditCancel {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.inlineEditSave {
+  background: var(--color-bg-info);
+  color: var(--color-text-info);
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7, 10, 19, 0.7);
+  padding: 14px;
+}
+
+.confirmCard {
+  width: min(320px, 100%);
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 10px;
+  background: var(--color-bg-primary);
+  padding: 14px;
+}
+
+.confirmText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.confirmActions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirmCancel,
+.confirmDelete {
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.confirmCancel {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.confirmDelete {
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.16);
 }
