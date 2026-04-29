@@ -58,6 +58,36 @@
   color: var(--color-text-primary);
 }
 
+.channelRow {
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+}
+
+.channelInviteButton {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.channelRow:hover .channelInviteButton {
+  opacity: 1;
+}
+
+.channelInviteButton:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+}
+
 .dmComposer {
   display: flex;
   flex-direction: column;
@@ -743,6 +773,36 @@
   font-size: 12px;
   line-height: 1.4;
   color: var(--color-text-primary);
+}
+
+.memberList {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  background: var(--color-surface-raised, #2a2d31);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.memberList li > button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.memberList li > button:hover:not(:disabled) {
+  background: var(--color-surface-hover, #3a3d41);
+}
+
+.memberList li > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .memberItem {
