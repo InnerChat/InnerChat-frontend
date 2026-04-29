@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Profiler, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useStompClient from '@/hooks/useStompClient'
 import { useAuthStore } from '@stores/authStore'
 import {
@@ -12,7 +12,7 @@ import {
   updateDmMessage,
   updateLastReadDmMessage
 } from '../api/dmApi'
-import { readChannelList, readChannelMembers, readChannelMessages, createChannel, deleteChannel, inviteToChannel } from '../api/channelApi'
+import { readChannelListUserId, readChannelMembers, readChannelMessages, createChannel, deleteChannel, leaveChannel, inviteToChannel, editChannelMessage, deleteChannelMessage } from '../api/channelApi'
 
 const WORKSPACE_ID = Number(import.meta.env.VITE_WORKSPACE_ID)
 const STOMP_SEND_DESTINATION = '/app/dm/chat/send'
@@ -297,12 +297,14 @@ export default function useChatLayoutState() {
   const loadChannels = useCallback(async () => {
     if (!accessToken) return
     try {
-      const raw = await readChannelList({ workspaceId: WORKSPACE_ID, accessToken })
+      // const raw = await readChannelList({ workspaceId: WORKSPACE_ID, accessToken })
+      const raw = await readChannelListUserId({accessToken})    
       const channels = raw.map((ch) => ({
         id: ch.channelId,
         name: ch.name,
         description: ch.description,
         type: ch.type,
+        ownerId: ch.ownerId,
         memberCount: ch.memberCount,
         isMember: ch.member ?? false,
         unreadCount: 0
@@ -333,6 +335,7 @@ export default function useChatLayoutState() {
     if (!accessToken || !channelId) return
     try {
       const raw = await readChannelMembers({ channelId, accessToken })
+      console.log(raw);
       const members = raw.map((m) => ({
         id: m.userId,
         name: m.userName ?? `User ${m.userId}`,
@@ -381,16 +384,22 @@ export default function useChatLayoutState() {
   }, [accessToken])
 
   const loadRoomMessages = useCallback(async () => {
-    if (!selectedRoom?.id) {
+    const dmRoomId = Number(selectedRoom?.id)
+    if (!dmRoomId || Number.isNaN(dmRoomId)) {
       return
     }
 
     const payload = await readDmMessages({
-      dmRoomId: selectedRoom.id,
+      dmRoomId,
       accessToken
     })
 
-    const messages = Array.isArray(payload?.messages) ? payload.messages.map(mapMessage) : []
+    const rawMessages = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.messages)
+        ? payload.messages
+        : []
+    const messages = rawMessages.map(mapMessage)
     const roomKey = buildRoomKey(selectedRoom)
 
     setLayoutData((prev) => ({
@@ -406,7 +415,7 @@ export default function useChatLayoutState() {
 
     if (user?.userId) {
       await updateLastReadDmMessage({
-        dmRoomId: selectedRoom.id,
+        dmRoomId,
         accessToken
       }).catch(() => {})
     }
@@ -576,6 +585,16 @@ export default function useChatLayoutState() {
   }, [ensureDmRoomTopicSubscription, isConnected, selectedRoom?.id, selectedRoom?.type])
 
   const channelTopicSubscriptionsRef = useRef(new Map())
+  const channelMemberEventSubScriptionsRef = useRef(new Map())
+  const channelMessageModifySubscriptionsRef = useRef(new Map())
+  const loadChannelMembersRef = useRef(loadChannelMembers)
+  useEffect(() => {
+    loadChannelMembersRef.current = loadChannelMembers
+  }, [loadChannelMembers])
+  const myProfileRef = useRef(layoutData.myProfile)
+  useEffect(() => {
+    myProfileRef.current = layoutData.myProfile
+  }, [layoutData.myProfile])
 
   const ensureChannelTopicSubscription = useCallback((channelId) => {
     const id = Number(channelId)
@@ -625,10 +644,89 @@ export default function useChatLayoutState() {
     }
   }, [clientRef])
 
+  const ensureChannelMemberEventSubscription = useCallback((channelId) => {
+    const id = Number(channelId);
+    if (channelMemberEventSubScriptionsRef.current.has(id)) return
+    
+    const client = clientRef.current
+    if (!client?.connected) return
+
+    try {
+      const subscription = client.subscribe(
+        `/topic/channel/${id}/members`,
+        (frame) => {
+          const event = JSON.parse(frame.body)
+          const isMySelf = Number(event.userId) === Number(myProfileRef.current.id)
+
+          if (event.eventType === 'MEMBER_LEFT' && isMySelf) {
+            setLayoutData((prev) => ({
+              ...prev,
+              rightPanelData: { ...prev.rightPanelData, member: []}
+            }))
+          } else {
+            loadChannelMembersRef.current(id).catch((error) => {
+              console.error('채널 멤버 갱신 실패', { channelId: id, error })
+            })
+          }
+
+        },
+        { id: `channel-members-${id}` }
+      )
+      channelMemberEventSubScriptionsRef.current.set(id, subscription)
+      console.log('[Channel member event subscribed]', { channelId: id })
+    } catch (error) {
+      console.error('채널 멤버 이벤트 구독 실패', { channelId: id, error })
+    }
+  }, [clientRef])
+
+  const ensureChannelMessageModifySubscription = useCallback((channelId) => {
+    const id = Number(channelId)
+    if (channelMessageModifySubscriptionsRef.current.has(id)) return
+
+    const client = clientRef.current
+    if (!client?.connected) return
+
+    try {
+      const subscription = client.subscribe(
+        `/topic/channel/${id}/messages`,
+        (frame) => {
+          try {
+            const payload = JSON.parse(frame.body)
+            const roomKey = `channel:${id}`
+            setLayoutData((prev) => ({
+              ...prev,
+              messagesByRoom: {
+                ...prev.messagesByRoom,
+                [roomKey]: (prev.messagesByRoom[roomKey] ?? []).map((msg) =>
+                  msg.channelMessageId === payload.channelMessageId
+                    ? { ...msg, text: payload.content, status: String(payload.status ?? '').toLowerCase() }
+                    : msg
+                )
+              }
+            }))
+          } catch (error) {
+            console.error('채널 메시지 수정 이벤트 파싱 실패', { channelId: id, error })
+          }
+        },
+        { id: `channel-msg-modify-${id}` }
+      )
+      channelMessageModifySubscriptionsRef.current.set(id, subscription)
+      console.log('[Channel message modify subscribed]', { channelId: id })
+    } catch (error) {
+      console.error('채널 메시지 수정 구독 실패', { channelId: id, error })
+    }
+  }, [clientRef])
+
   useEffect(() => {
     if (!isConnected) {
       channelTopicSubscriptionsRef.current.forEach((sub) => sub?.unsubscribe())
       channelTopicSubscriptionsRef.current.clear()
+
+      channelMemberEventSubScriptionsRef.current.forEach((sub) => sub?.unsubscribe())
+      channelMemberEventSubScriptionsRef.current.clear()
+
+      channelMessageModifySubscriptionsRef.current.forEach((sub) => sub?.unsubscribe())
+      channelMessageModifySubscriptionsRef.current.clear()
       return
     }
 
@@ -636,23 +734,40 @@ export default function useChatLayoutState() {
       .filter((ch) => ch.isMember)
       .map((ch) => Number(ch.id))
 
-    myChannelIds.forEach((id) => ensureChannelTopicSubscription(id))
+    myChannelIds.forEach((id) => {
+      ensureChannelTopicSubscription(id)
+      ensureChannelMemberEventSubscription(id)
+      ensureChannelMessageModifySubscription(id)
+    })
 
     channelTopicSubscriptionsRef.current.forEach((sub, id) => {
       if (!myChannelIds.includes(id)) {
         sub?.unsubscribe()
         channelTopicSubscriptionsRef.current.delete(id)
-        console.log('[Channel topic unsubscribed]', { channelId: id })
       }
     })
-  }, [isConnected, layoutData.channels, ensureChannelTopicSubscription])
+
+    channelMemberEventSubScriptionsRef.current.forEach((sub, id) => {
+      if (!myChannelIds.includes(id)) {
+        sub?.unsubscribe()
+        channelMemberEventSubScriptionsRef.current.delete(id)
+      }
+    })
+
+    channelMessageModifySubscriptionsRef.current.forEach((sub, id) => {
+      if (!myChannelIds.includes(id)) {
+        sub?.unsubscribe()
+        channelMessageModifySubscriptionsRef.current.delete(id)
+      }
+    })
+  }, [isConnected, layoutData.channels, ensureChannelTopicSubscription, ensureChannelMemberEventSubscription, ensureChannelMessageModifySubscription])
 
   useEffect(() => {
     if (!isConnected) {
-      return undefined 
+      return undefined
     }
 
-    const scheduleRefresh = () => {
+    const scheduleRefresh = (withRetry = false) => {
       if (dmRoomRefreshTimerRef.current) {
         clearTimeout(dmRoomRefreshTimerRef.current)
       }
@@ -662,19 +777,36 @@ export default function useChatLayoutState() {
           console.error('DM room list refresh failed', error)
         })
       }, 120)
+
+      if (withRetry) {
+        setTimeout(() => {
+          loadDmRooms().catch((error) => {
+            console.error('DM room list delayed refresh failed', error)
+          })
+        }, 900)
+      }
     }
 
-    const inboxDestinations = ['/user/queue/dm/events']
-    let cancelled = false
-    let retryTimer = null
-    const subscriptions = []
+    const client = clientRef.current
+    if (!client?.connected) {
+      console.warn('[DM inbox subscribe skipped] client is not connected yet')
+      return undefined
+    }
+
+    const inboxDestinations = ['/user/queue/dm/events', '/queue/dm/events']
+    console.log('[DM inbox subscribe attempt]', {
+      destinations: inboxDestinations,
+      connected: client.connected
+    })
 
     const handleInboxFrame = (frame, destination) => {
       try {
         const event = JSON.parse(frame.body)
         const dmRoomId = Number(event?.dmRoomId)
         const eventType = String(event?.eventType ?? '')
-        const hasDmRoomInList = dmRoomIdsRef.current.has(Number(dmRoomId))
+        const isDmMessageCreatedEvent = eventType === 'DM_MESSAGE_CREATED'
+        const hasRoomSubscription =
+          dmRoomId > 0 && dmRoomTopicSubscriptionsRef.current.has(Number(dmRoomId))
         const unreadTriggerEvent = isUnreadTriggerDmEvent(event)
         const messageDedupKey =
           Number(event?.dmMessageId ?? 0) > 0
@@ -732,7 +864,7 @@ export default function useChatLayoutState() {
                 initials: toInitials(fallbackName),
                 colorKey: pickColorKey(dmRoomId),
                 isOnline: false,
-                unreadCount: isActiveRoom ? 0 : 1,
+                unreadCount: isActiveRoom ? 0 : 1
               }
 
               return {
@@ -750,10 +882,8 @@ export default function useChatLayoutState() {
           }
         }
 
-        if (!hasDmRoomInList && dmRoomId > 0) {
-          console.log('[DM inbox refresh trigger] room not in list', { dmRoomId })
-          scheduleRefresh()
-        }
+        // Refresh DM list for any valid DM event so backend event type changes do not break UI updates.
+        scheduleRefresh(true)
       } catch (error) {
         console.error('Failed to parse DM inbox event', {
           destination,
@@ -763,57 +893,19 @@ export default function useChatLayoutState() {
       }
     }
 
-    const trySubscribeInbox = (attempt = 1) => {
-      if (cancelled) {
-        return
-      }
-
-      const client = clientRef.current
-      const isClientReady = Boolean(client?.connected)
-      if (!isClientReady) {
-        if (attempt <= 10) {
-          console.warn('[DM inbox subscribe delayed retry]', { attempt })
-          retryTimer = setTimeout(() => {
-            trySubscribeInbox(attempt + 1)
-          }, 150)
-        } else {
-          console.error('[DM inbox subscribe aborted] client not connected after retries', {
-            retries: attempt - 1
-          })
-        }
-        return
-      }
-
-      console.log('[DM inbox subscribe attempt]', {
-        destinations: inboxDestinations,
-        connected: client.connected,
-        attempt
-      })
-
-      inboxDestinations.forEach((destination, index) => {
+    const subscriptions = inboxDestinations
+      .map((destination, index) => {
         try {
           const id = `dm-inbox-${index}-${Date.now()}`
-
-          console.log('[DM inbox subscribe request]', {
-            destination,
-            index,
-            id,
-            connected: client.connected
-          })
-
-          const subscription = client.subscribe(
+          return client.subscribe(
             destination,
             (frame) => {
               try {
                 const payload = JSON.parse(frame?.body ?? '{}')
                 const dmRoomId = Number(payload?.dmRoomId)
-
-                console.log('[DM inbox frame received]', {
-                  destination,
-                  id,
-                  dmRoomId,
-                  body: frame?.body
-                })
+                if (Number.isInteger(dmRoomId)) {
+                  ensureDmRoomTopicSubscription(dmRoomId)
+                }
               } catch (preEnsureError) {
                 console.warn('DM inbox pre-ensure parse failed', {
                   destination,
@@ -826,30 +918,44 @@ export default function useChatLayoutState() {
             },
             { id }
           )
-
-          console.log('[DM inbox subscribe registered]', {
-            destination,
-            index,
-            id,
-            subscriptionId: subscription?.id,
-            hasUnsubscribe: typeof subscription?.unsubscribe === 'function'
-          })
-
-          subscriptions.push(subscription)
         } catch (error) {
           console.error('DM inbox subscribe failed', { destination, error })
+          return null
         }
       })
+      .filter(Boolean)
+
+    let channelInboxSubscription = null
+    try {
+      channelInboxSubscription = client.subscribe(
+        // `/user/${myProfileRef.current.id}/queue/channel/events`,
+        '/user/queue/channel/events', 
+        // `/queue/channel/events`,
+        (frame) => {
+          console.log('[Channel inbox received]', frame?.body)
+          try {
+            const event = JSON.parse(frame.body)
+            console.log('[Channel inbox event]', event)
+            if (event.eventType === 'MEMBER_INVITED') {
+              console.log('[Channel inbox] MEMBER_INVITED → loadChannels 호출')
+              loadChannels().then(() => {
+                console.log('[Channel inbox] loadChannels 완료')
+              }).catch((error) => {
+                console.error('채널 목록 갱신 실패', error)
+              })
+            }
+          } catch (error) {
+            console.error('채널 인박스 이벤트 파싱 실패', { body: frame?.body, error })
+          }
+        },
+        { id: 'channel-inbox' }
+      )
+      console.log('[Channel inbox subscribed]')
+    } catch (error) {
+      console.error('채널 인박스 구독 실패', error)
     }
 
-    trySubscribeInbox()
-
     return () => {
-      cancelled = true
-      if (retryTimer) {
-        clearTimeout(retryTimer)
-        retryTimer = null
-      }
       if (dmRoomRefreshTimerRef.current) {
         clearTimeout(dmRoomRefreshTimerRef.current)
         dmRoomRefreshTimerRef.current = null
@@ -857,8 +963,9 @@ export default function useChatLayoutState() {
       dmInboxEventDedupRef.current.clear()
       dmRoomNoticeDedupRef.current.clear()
       subscriptions.forEach((subscription) => subscription?.unsubscribe())
+      channelInboxSubscription?.unsubscribe()
     }
-  }, [clientRef, ensureDmRoomTopicSubscription, isConnected, loadDmRooms])
+  }, [clientRef, ensureDmRoomTopicSubscription, isConnected, loadChannels, loadDmRooms])
 
   const createOrOpenDmRoom = useCallback(
     async (participantIdList) => {
@@ -927,7 +1034,7 @@ export default function useChatLayoutState() {
 
   const actions = {
     selectChannel: (channelId) => setSelectedRoom({ type: 'channel', id: channelId }),
-    selectDirectMessage: (dm) => setSelectedRoom({ type: 'dm', id: dm.id, dmRoomType: dm.dmRoomType }),
+    selectDirectMessage: (dm) => setSelectedRoom({ type: 'dm', id: dm.id ?? dm, dmRoomType: dm.dmRoomType }),
     toggleRightPanel: () => setIsRightPanelOpen((prev) => !prev),
     hydrateLayoutData: (payload) =>
       setLayoutData((prev) => ({
@@ -1016,68 +1123,65 @@ export default function useChatLayoutState() {
         })
       })
     },
-    addChannel: () => undefined,
-    createChannel: createChannelRoom,
-    deleteChannel: deleteChannelRoom,
-    inviteToChannel: inviteToChannelRoom,
-    addReaction: () => undefined,
-    openThread: () => undefined,
-    editDmMessage: async (message, content) => {
-      if (selectedRoom?.type !== 'dm' || !selectedRoom.id || !message?.dmMessageId) {
-        return
-      }
+    editChannelMessage: async (message, content) => {
+      if (selectedRoom?.type !== 'channel' || !message?.channelMessageId) return
       const trimmed = String(content ?? '').trim()
-      if (!trimmed) {
-        return
-      }
-
-      await updateDmMessage({
-        dmRoomId: selectedRoom.id,
-        dmMessageId: message.dmMessageId,
-        content: trimmed,
-        accessToken
-      })
-
+      if (!trimmed) return
+      await editChannelMessage({ channelMessageId: message.channelMessageId, content: trimmed, accessToken })
+      const roomKey = `channel:${selectedRoom.id}`
+      setLayoutData((prev) => ({
+        ...prev,
+        messagesByRoom: {
+          ...prev.messagesByRoom,
+          [roomKey]: (prev.messagesByRoom[roomKey] ?? []).map((msg) =>
+            msg.channelMessageId === message.channelMessageId
+              ? { ...msg, text: trimmed, status: 'modified' }
+              : msg
+          )
+        }
+      }))
+    },
+    deleteChannelMessage: async (message) => {
+      if (selectedRoom?.type !== 'channel' || !message?.channelMessageId) return
+      await deleteChannelMessage({ channelMessageId: message.channelMessageId, accessToken })
+      const roomKey = `channel:${selectedRoom.id}`
+      setLayoutData((prev) => ({
+        ...prev,
+        messagesByRoom: {
+          ...prev.messagesByRoom,
+          [roomKey]: (prev.messagesByRoom[roomKey] ?? []).map((msg) =>
+            msg.channelMessageId === message.channelMessageId
+              ? { ...msg, text: '삭제된 메시지입니다.', status: 'deleted' }
+              : msg
+          )
+        }
+      }))
+    },
+    editDmMessage: async (message, content) => {
+      if (selectedRoom?.type !== 'dm' || !message?.dmMessageId) return
+      const trimmed = String(content ?? '').trim()
+      if (!trimmed) return
+      await updateDmMessage({ dmRoomId: selectedRoom.id, dmMessageId: message.dmMessageId, content: trimmed, accessToken })
       const roomKey = `dm:${selectedRoom.id}`
       const nowIso = new Date().toISOString()
       setLayoutData((prev) => ({
         ...prev,
         messagesByRoom: {
           ...prev.messagesByRoom,
-          [roomKey]: updateMessageContent(
-            prev.messagesByRoom[roomKey] ?? [],
-            message.dmMessageId,
-            trimmed,
-            nowIso
-          )
+          [roomKey]: updateMessageContent(prev.messagesByRoom[roomKey] ?? [], message.dmMessageId, trimmed, nowIso)
         }
       }))
-
       const client = clientRef.current
       if (client?.connected) {
         client.publish({
           destination: STOMP_UPDATE_DESTINATION,
-          body: JSON.stringify({
-            dmRoomId: selectedRoom.id,
-            dmMessageId: message.dmMessageId,
-            content: trimmed,
-            eventType: 'MESSAGE_UPDATED',
-            updatedAt: nowIso
-          })
+          body: JSON.stringify({ dmRoomId: selectedRoom.id, dmMessageId: message.dmMessageId, content: trimmed, eventType: 'MESSAGE_UPDATED', updatedAt: nowIso })
         })
       }
     },
     deleteDmMessage: async (message) => {
-      if (selectedRoom?.type !== 'dm' || !selectedRoom.id || !message?.dmMessageId) {
-        return
-      }
-
-      await deleteDmMessage({
-        dmRoomId: selectedRoom.id,
-        dmMessageId: message.dmMessageId,
-        accessToken
-      })
-
+      if (selectedRoom?.type !== 'dm' || !message?.dmMessageId) return
+      await deleteDmMessage({ dmRoomId: selectedRoom.id, dmMessageId: message.dmMessageId, accessToken })
       const roomKey = `dm:${selectedRoom.id}`
       setLayoutData((prev) => ({
         ...prev,
@@ -1086,19 +1190,20 @@ export default function useChatLayoutState() {
           [roomKey]: removeMessage(prev.messagesByRoom[roomKey] ?? [], message.dmMessageId)
         }
       }))
-
       const client = clientRef.current
       if (client?.connected) {
         client.publish({
           destination: STOMP_DELETE_DESTINATION,
-          body: JSON.stringify({
-            dmRoomId: selectedRoom.id,
-            dmMessageId: message.dmMessageId,
-            eventType: 'MESSAGE_DELETED'
-          })
+          body: JSON.stringify({ dmRoomId: selectedRoom.id, dmMessageId: message.dmMessageId, eventType: 'MESSAGE_DELETED' })
         })
       }
     },
+    addChannel: () => undefined,
+    createChannel: createChannelRoom,
+    deleteChannel: deleteChannelRoom,
+    inviteToChannel: inviteToChannelRoom,
+    addReaction: () => undefined,
+    openThread: () => undefined,
     runHeaderAction: () => undefined,
     refreshDmRooms: loadDmRooms,
     loadWorkspaceMembersForDm: async () => {
@@ -1123,6 +1228,13 @@ export default function useChatLayoutState() {
         }
         return prev
       })
+    },
+    leaveChannel: async (channelId) => {
+      await leaveChannel({ channelId, accessToken })
+      setSelectedRoom((prev) =>
+        prev?.type === 'channel' && prev?.id === channelId ? null : prev
+      )
+      await loadChannels()
     }
   }
 
@@ -1131,7 +1243,6 @@ export default function useChatLayoutState() {
     myProfile: layoutData.myProfile,
     channels: layoutData.channels,
     directMessages: layoutData.directMessages,
-    selectedDmRoomType,
     rightPanelData: layoutData.rightPanelData,
     selectedRoom,
     roomMeta,
