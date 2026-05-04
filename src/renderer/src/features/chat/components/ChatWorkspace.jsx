@@ -103,7 +103,7 @@ export default function ChatWorkspace({ state }) {
 
         return {
           id,
-          name: String(name).trim()
+          name: String(name)
         }
       })
       .filter((member) => member.id > 0 && member.name)

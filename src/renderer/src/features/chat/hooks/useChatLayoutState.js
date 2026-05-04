@@ -1243,6 +1243,7 @@ export default function useChatLayoutState() {
     myProfile: layoutData.myProfile,
     channels: layoutData.channels,
     directMessages: layoutData.directMessages,
+    selectedDmRoomType,
     rightPanelData: layoutData.rightPanelData,
     selectedRoom,
     roomMeta,
